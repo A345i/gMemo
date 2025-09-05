@@ -52,10 +52,11 @@ document.addEventListener('DOMContentLoaded', () => {
     
 
     // --- Pan and Zoom ---
-    let isCanvasDragging = false;
+    let isPanning = false;
+    let panMode = 'none'; // 'mouse' or 'touch'
     let lastPosX, lastPosY;
 
-    // --- Desktop: Mouse Wheel Zoom (Alt + Scroll) ---
+    // --- Mouse Wheel Zoom (Desktop) ---
     fabricCanvas.on('mouse:wheel', function(opt) {
         if (!opt.e.altKey) return;
         const delta = opt.e.deltaY;
@@ -68,10 +69,10 @@ document.addEventListener('DOMContentLoaded', () => {
         opt.e.stopPropagation();
     });
 
-    // --- Touch: Pinch-to-Zoom ---
+    // --- Pinch-to-Zoom (Touch) ---
     fabricCanvas.on('touch:gesture', function(opt) {
         if (opt.e.touches && opt.e.touches.length === 2) {
-            isCanvasDragging = false; // Prevent panning during zoom
+            isPanning = false; // Stop panning if a zoom gesture starts
             const point = new fabric.Point(opt.self.x, opt.self.y);
             let zoom = fabricCanvas.getZoom();
             zoom *= opt.self.scale;
@@ -81,37 +82,63 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Desktop (Alt + Drag) & Touch (Two-finger Drag) Panning ---
+    // --- Panning Start ---
     fabricCanvas.on('mouse:down', function(opt) {
         const e = opt.e;
-        // Start panning if Alt key is pressed OR it's a two-finger touch
-        if (e.altKey || (e.touches && e.touches.length === 2)) {
-            isCanvasDragging = true;
-            fabricCanvas.selection = false; // Disable object selection while panning
-            const point = e.touches ? e.touches[0] : e;
-            lastPosX = point.clientX;
-            lastPosY = point.clientY;
-            if (e.altKey) fabricCanvas.setCursor('grabbing');
+        if (e.altKey) {
+            isPanning = true;
+            panMode = 'mouse';
+            fabricCanvas.selection = false;
+            lastPosX = e.clientX;
+            lastPosY = e.clientY;
+            fabricCanvas.setCursor('grabbing');
         }
     });
 
+    // --- Panning Move ---
     fabricCanvas.on('mouse:move', function(opt) {
-        if (!isCanvasDragging) return;
         const e = opt.e;
-        const point = e.touches ? e.touches[0] : e;
-        const vpt = this.viewportTransform;
-        vpt[4] += point.clientX - lastPosX;
-        vpt[5] += point.clientY - lastPosY;
-        this.requestRenderAll();
-        lastPosX = point.clientX;
-        lastPosY = point.clientY;
+
+        // Check if we should START touch panning
+        if (!isPanning && e.touches && e.touches.length === 2) {
+            isPanning = true;
+            panMode = 'touch';
+            fabricCanvas.discardActiveObject().renderAll(); // Cancel any selection
+            fabricCanvas.selection = false;
+            // Use midpoint of touches
+            lastPosX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            lastPosY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            return;
+        }
+
+        if (isPanning) {
+            const vpt = this.viewportTransform;
+            let currentX, currentY;
+
+            if (panMode === 'touch') {
+                if (!e.touches || e.touches.length !== 2) return; // Stop if fingers are lifted
+                currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            } else { // panMode === 'mouse'
+                currentX = e.clientX;
+                currentY = e.clientY;
+            }
+
+            vpt[4] += currentX - lastPosX;
+            vpt[5] += currentY - lastPosY;
+            this.requestRenderAll();
+            lastPosX = currentX;
+            lastPosY = currentY;
+        }
     });
 
+    // --- Panning End ---
     fabricCanvas.on('mouse:up', function(opt) {
-        if (isCanvasDragging) {
+        if (isPanning) {
             this.setViewportTransform(this.viewportTransform);
-            isCanvasDragging = false;
-            fabricCanvas.selection = true; // Re-enable object selection
+            isPanning = false;
+            panMode = 'none';
+            fabricCanvas.selection = true;
             fabricCanvas.setCursor('default');
         }
     });
