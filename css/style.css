@@ -2,7 +2,7 @@
 body {
     margin: 0;
     padding-top: 56px; /* Height of the fixed navbar */
-    background-color: #343a40; /* Dark background for the area outside the canvas */
+    background-color: #e9ecef; /* A light gray background for contrast */
     overflow: hidden; /* Prevents browser scrollbars */
 }
 
@@ -15,90 +15,90 @@ body {
 
 /* Canvas Element */
 #canvas {
-    border: 1px solid #495057;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
     background-color: #fff; /* White canvas background */
 }
 
-/* Toolbar Customization */
-.navbar {
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+/* Top Navbar Customization */
+.navbar-brand {
+    letter-spacing: -0.5px;
 }
-
-.navbar .btn {
-    margin: 0 2px;
-}
-
-.navbar .btn.active {
-    background-color: #0d6efd; /* Bootstrap primary color */
-    border-color: #0d6efd;
-}
-
-.form-control-color {
-    min-width: 40px;
-    padding: 0.2rem;
-}
-
-.form-range {
-    min-width: 100px;
-}
-
 #page-indicator {
-    min-width: 120px;
+    min-width: 80px;
     text-align: center;
-    font-weight: 500;
+    font-size: 0.9rem;
+    color: #6c757d;
+}
+.form-control-color {
+    min-width: 38px;
+    padding: 0.15rem;
+    border-radius: 0.2rem;
+}
+.form-range {
+    min-width: 80px;
+}
+.navbar .btn {
+    transition: background-color 0.15s ease-in-out;
+}
+.navbar .btn.active {
+    background-color: #0d6efd;
+    color: white;
+}
+.navbar .btn.active .bi {
+    color: white;
 }
 
-/* Make tool buttons slightly larger for easier clicking */
-.navbar-nav .btn {
-    font-size: 1.1rem;
-    padding: 0.4rem 0.8rem;
+
+/* Mobile Toolbar (Bottom) */
+#mobile-toolbar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px; /* Fixed height */
+    background-color: #fff;
+    border-top: 1px solid #dee2e6;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 0.5rem;
+    z-index: 1031; /* Above navbar's z-index */
 }
 
-/* Responsive Design */
-@media (max-width: 992px) {
-    body {
-        padding-top: 0; /* Remove padding as toolbar is not fixed */
-    }
-    .navbar.fixed-top {
-        position: static;
-    }
+#mobile-toolbar .btn {
+    flex: 1;
+    font-size: 1.2rem;
+    border: none;
+}
+#mobile-toolbar .btn.active {
+    color: #0d6efd;
+    background-color: #e7f1ff;
+}
+#mobile-toolbar .form-range {
+    flex: 2;
+    margin: 0 0.5rem;
+}
+#mobile-toolbar .form-control-color {
+    flex: 0 0 40px;
+}
+
+
+/* Responsive Adjustments */
+@media (max-width: 991.98px) {
+    /* Add padding to the bottom of the canvas container to avoid overlap with mobile toolbar */
     #canvas-container {
-        min-height: calc(100vh - 150px); /* Adjust based on dynamic navbar height */
-        padding: 0.5rem;
-    }
-    .navbar-nav .ms-3, .d-flex .ms-3 {
-        margin-left: 0 !important;
-        margin-top: 0.5rem;
-    }
-    .navbar-collapse {
-        padding: 1rem;
-        background-color: #343a40;
-    }
-    /* Better mobile toolbar layout */
-    .navbar-collapse .navbar-nav {
-        flex-direction: row;
-        flex-wrap: wrap;
-        align-items: center;
-        justify-content: center;
-    }
-    .navbar-collapse .navbar-nav .nav-item {
-        margin-bottom: 0.5rem;
-        margin-right: 0.5rem;
-    }
-    .navbar-collapse .d-flex {
-        flex-wrap: wrap;
-        justify-content: center;
-        margin-top: 1rem;
+        height: calc(100vh - 56px - 60px); /* Full height minus top and bottom bars */
     }
 }
 
-@media (max-width: 576px) {
+@media (max-width: 370px) {
     #page-indicator {
-        min-width: 100px;
-        font-size: 0.9rem;
+        min-width: 60px;
     }
-    .navbar-brand {
-        font-size: 1.1rem;
+    #mobile-toolbar {
+        height: 50px;
+    }
+     #canvas-container {
+        height: calc(100vh - 56px - 50px);
     }
 }
