@@ -1,0 +1,104 @@
+/* General Body Styles */
+body {
+    margin: 0;
+    padding-top: 56px; /* Height of the fixed navbar */
+    background-color: #343a40; /* Dark background for the area outside the canvas */
+    overflow: hidden; /* Prevents browser scrollbars */
+}
+
+/* Canvas Container */
+#canvas-container {
+    width: 100vw;
+    height: calc(100vh - 56px);
+    overflow: hidden; /* Hide parts of the canvas that are outside the viewport */
+}
+
+/* Canvas Element */
+#canvas {
+    border: 1px solid #495057;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    background-color: #fff; /* White canvas background */
+}
+
+/* Toolbar Customization */
+.navbar {
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.navbar .btn {
+    margin: 0 2px;
+}
+
+.navbar .btn.active {
+    background-color: #0d6efd; /* Bootstrap primary color */
+    border-color: #0d6efd;
+}
+
+.form-control-color {
+    min-width: 40px;
+    padding: 0.2rem;
+}
+
+.form-range {
+    min-width: 100px;
+}
+
+#page-indicator {
+    min-width: 120px;
+    text-align: center;
+    font-weight: 500;
+}
+
+/* Make tool buttons slightly larger for easier clicking */
+.navbar-nav .btn {
+    font-size: 1.1rem;
+    padding: 0.4rem 0.8rem;
+}
+
+/* Responsive Design */
+@media (max-width: 992px) {
+    body {
+        padding-top: 0; /* Remove padding as toolbar is not fixed */
+    }
+    .navbar.fixed-top {
+        position: static;
+    }
+    #canvas-container {
+        min-height: calc(100vh - 150px); /* Adjust based on dynamic navbar height */
+        padding: 0.5rem;
+    }
+    .navbar-nav .ms-3, .d-flex .ms-3 {
+        margin-left: 0 !important;
+        margin-top: 0.5rem;
+    }
+    .navbar-collapse {
+        padding: 1rem;
+        background-color: #343a40;
+    }
+    /* Better mobile toolbar layout */
+    .navbar-collapse .navbar-nav {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+    }
+    .navbar-collapse .navbar-nav .nav-item {
+        margin-bottom: 0.5rem;
+        margin-right: 0.5rem;
+    }
+    .navbar-collapse .d-flex {
+        flex-wrap: wrap;
+        justify-content: center;
+        margin-top: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    #page-indicator {
+        min-width: 100px;
+        font-size: 0.9rem;
+    }
+    .navbar-brand {
+        font-size: 1.1rem;
+    }
+}
