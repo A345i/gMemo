@@ -362,6 +362,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.renderAll();
             } else if (options.target.type === 'i-text') {
                 options.target.enterEditing();
+                options.target.selectAll();
             }
         }
     });
