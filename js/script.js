@@ -14,6 +14,10 @@ document.addEventListener('DOMContentLoaded', () => {
         undo: document.getElementById('undo-button'),
         redo: document.getElementById('redo-button'),
     };
+    const importExportButtons = {
+        export: document.getElementById('export-button'),
+        importInput: document.getElementById('import-input'),
+    };
     const pageControls = {
         prev: document.getElementById('prev-page'),
         next: document.getElementById('next-page'),
@@ -358,6 +362,53 @@ document.addEventListener('DOMContentLoaded', () => {
             loadPage(currentPageIndex);
         }
     });
+
+    // --- Import/Export ---
+    const exportNotes = () => {
+        saveCurrentPage(); // Ensure the very latest changes are saved
+        const dataStr = JSON.stringify(pages);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        const url = URL.createObjectURL(dataBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gMemo_export_${new Date().toISOString().slice(0, 10)}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    };
+
+    const importNotes = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const importedPages = JSON.parse(event.target.result);
+                if (Array.isArray(importedPages)) {
+                    if (confirm("Импорт заменит все текущие заметки. Продолжить?")) {
+                        pages = importedPages;
+                        loadPage(0);
+                        saveToLocalStorage();
+                    }
+                } else {
+                    throw new Error("Invalid file format");
+                }
+            } catch (error) {
+                alert("Не удалось импортировать файл. Убедитесь, что это правильный файл экспорта gMemo.");
+                console.error("Import error:", error);
+            } finally {
+                // Reset file input to allow importing the same file again
+                e.target.value = '';
+            }
+        };
+        reader.readAsText(file);
+    };
+
+    importExportButtons.export.addEventListener('click', exportNotes);
+    importExportButtons.importInput.addEventListener('change', importNotes);
+
 
     // --- Final Setup ---
     setActiveTool('select');
