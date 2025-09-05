@@ -40,6 +40,18 @@ document.addEventListener('DOMContentLoaded', () => {
         backgroundColor: '#fff',
     });
 
+    // --- Mobile/Touch Optimizations ---
+    if ('ontouchstart' in window) {
+        fabric.Object.prototype.set({
+            cornerSize: 30,
+            touchCornerSize: 40,
+            transparentCorners: false,
+            cornerColor: 'rgba(0,123,255,0.8)',
+            borderColor: 'rgba(0,123,255,0.8)',
+            cornerStyle: 'circle'
+        });
+    }
+
     // --- Canvas Sizing ---
     const resizeCanvas = () => {
         const containerWidth = canvasContainer.clientWidth;
@@ -82,30 +94,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- Panning Start ---
-    fabricCanvas.on('mouse:down', function(opt) {
-        const e = opt.e;
-        if (e.altKey) {
-            isPanning = true;
-            panMode = 'mouse';
-            fabricCanvas.selection = false;
-            lastPosX = e.clientX;
-            lastPosY = e.clientY;
-            fabricCanvas.setCursor('grabbing');
-        }
-    });
-
     // --- Panning Move ---
     fabricCanvas.on('mouse:move', function(opt) {
         const e = opt.e;
 
         // Check if we should START touch panning
         if (!isPanning && e.touches && e.touches.length === 2) {
+            if (fabricCanvas.isDrawingMode) {
+                fabricCanvas.isDrawingMode = false; // Prevent stray lines
+            }
             isPanning = true;
             panMode = 'touch';
-            fabricCanvas.discardActiveObject().renderAll(); // Cancel any selection
+            fabricCanvas.discardActiveObject().renderAll();
             fabricCanvas.selection = false;
-            // Use midpoint of touches
             lastPosX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
             lastPosY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
             return;
@@ -116,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let currentX, currentY;
 
             if (panMode === 'touch') {
-                if (!e.touches || e.touches.length !== 2) return; // Stop if fingers are lifted
+                if (!e.touches || e.touches.length < 2) return;
                 currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
                 currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
             } else { // panMode === 'mouse'
@@ -129,17 +130,6 @@ document.addEventListener('DOMContentLoaded', () => {
             this.requestRenderAll();
             lastPosX = currentX;
             lastPosY = currentY;
-        }
-    });
-
-    // --- Panning End ---
-    fabricCanvas.on('mouse:up', function(opt) {
-        if (isPanning) {
-            this.setViewportTransform(this.viewportTransform);
-            isPanning = false;
-            panMode = 'none';
-            fabricCanvas.selection = true;
-            fabricCanvas.setCursor('default');
         }
     });
 
@@ -259,17 +249,6 @@ document.addEventListener('DOMContentLoaded', () => {
     fabricCanvas.freeDrawingBrush.color = colorPicker.value;
     fabricCanvas.freeDrawingBrush.width = parseInt(lineWidth.value, 10);
 
-    toolbarButtons.text.addEventListener('click', () => {
-        const text = new fabric.IText('Введите текст...', {
-            left: 100, top: 100, fill: colorPicker.value, fontSize: 24, fontFamily: 'Arial'
-        });
-        fabricCanvas.add(text);
-        fabricCanvas.setActiveObject(text);
-        text.enterEditing();
-        text.selectAll();
-        setActiveTool('select');
-    });
-
     toolbarButtons.image.addEventListener('change', (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -306,6 +285,65 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Text Tool: Create text on tap & Panning Start ---
+    fabricCanvas.on('mouse:down', function(opt) {
+        // Handle text tool logic
+        if (currentTool === 'text' && !opt.target && !isPanning) {
+            const pointer = fabricCanvas.getPointer(opt.e);
+            const text = new fabric.IText('Текст', {
+                left: pointer.x,
+                top: pointer.y,
+                fill: colorPicker.value,
+                fontSize: 24,
+                fontFamily: 'Arial',
+                originX: 'center',
+                originY: 'center'
+            });
+            fabricCanvas.add(text);
+            fabricCanvas.setActiveObject(text);
+            text.enterEditing();
+            text.selectAll();
+            
+            setActiveTool('select'); // Switch back to select tool
+            return; // Stop further processing
+        }
+
+        // Handle panning start for mouse
+        const e = opt.e;
+        if (e.altKey) {
+            isPanning = true;
+            panMode = 'mouse';
+            fabricCanvas.selection = false;
+            lastPosX = e.clientX;
+            lastPosY = e.clientY;
+            fabricCanvas.setCursor('grabbing');
+        }
+    });
+
+    // --- Panning End & Link Click ---
+    fabricCanvas.on('mouse:up', function(opt) {
+        // End Panning
+        if (isPanning) {
+            this.setViewportTransform(this.viewportTransform);
+            if (panMode === 'touch' && currentTool === 'draw') {
+                fabricCanvas.isDrawingMode = true; // Re-enable drawing
+            }
+            isPanning = false;
+            panMode = 'none';
+            fabricCanvas.selection = true;
+            fabricCanvas.setCursor('default');
+        }
+        // Handle Link Clicks
+        else if (opt.target && opt.target.isLink && !opt.target.isEditing) {
+            // Use a small timeout to distinguish from double-click
+            setTimeout(() => {
+                if (fabricCanvas.getActiveObject() === opt.target) {
+                     window.open(opt.target.url, '_blank');
+                }
+            }, 200);
+        }
+    });
+
     // --- Canvas Events ---
     fabricCanvas.on({
         'object:added': saveState,
@@ -325,16 +363,6 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (options.target.type === 'i-text') {
                 options.target.enterEditing();
             }
-        }
-    });
-
-    fabricCanvas.on('mouse:up', (options) => {
-        if (options.target && options.target.isLink && !options.target.isEditing) {
-            setTimeout(() => {
-                if (fabricCanvas.getActiveObject() === options.target) {
-                     window.open(options.target.url, '_blank');
-                }
-            }, 200);
         }
     });
 
