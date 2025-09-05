@@ -43,11 +43,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Mobile/Touch Optimizations ---
     if ('ontouchstart' in window) {
         fabric.Object.prototype.set({
-            cornerSize: 30,
-            touchCornerSize: 40,
-            transparentCorners: false,
-            cornerColor: 'rgba(0,123,255,0.8)',
-            borderColor: 'rgba(0,123,255,0.8)',
+            cornerSize: 15, // Visual size of the corner
+            touchCornerSize: 44, // Larger touch area for easier interaction
+            transparentCorners: true, // Don't fill the area between corner and object
+            cornerColor: 'rgba(0,123,255,0.7)',
+            borderColor: 'rgba(0,123,255,0.7)',
             cornerStyle: 'circle'
         });
     }
@@ -361,8 +361,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (newUrl !== null) target.set('url', newUrl);
                 fabricCanvas.renderAll();
             } else if (options.target.type === 'i-text') {
-                options.target.enterEditing();
-                options.target.selectAll();
+                const target = options.target;
+                target.enterEditing();
+                
+                // Manually implement word selection for better touch support
+                const selectionStart = target.getSelectionStartFromPointer(options.e);
+                const start = target.findWordBoundaryLeft(selectionStart);
+                const end = target.findWordBoundaryRight(selectionStart);
+
+                target.setSelectionStart(start);
+                target.setSelectionEnd(end);
+                fabricCanvas.renderAll(); // Re-render to show selection
             }
         }
     });
