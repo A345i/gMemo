@@ -13,65 +13,77 @@
 </head>
 <body>
 
-    <!-- Toolbar -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+    <!-- Top Toolbar (Navbar) -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top border-bottom">
         <div class="container-fluid">
-            <a class="navbar-brand" href="#">gMemo</a>
+            <a class="navbar-brand fw-bold" href="#">gMemo</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#toolbar" aria-controls="toolbar" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="toolbar">
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center">
-                    <!-- Tools -->
+                <!-- Desktop Tools (Hidden on Mobile) -->
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center d-none d-lg-flex">
                     <li class="nav-item">
-                        <button id="select-tool" class="btn btn-dark active" title="Выбрать и перемещать"><i class="bi bi-cursor-fill"></i></button>
-                    </li>
-                    <li class="nav-item">
-                        <button id="draw-tool" class="btn btn-dark" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
+                        <button data-tool="select" class="btn btn-light active" title="Выбрать и перемещать"><i class="bi bi-cursor-fill"></i></button>
                     </li>
                     <li class="nav-item">
-                        <button id="text-tool" class="btn btn-dark" title="Добавить текст"><i class="bi bi-fonts"></i></button>
+                        <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
                     </li>
                     <li class="nav-item">
-                        <label for="image-upload" class="btn btn-dark" title="Добавить картинку"><i class="bi bi-image-fill"></i></label>
-                        <input type="file" id="image-upload" accept="image/*" style="display: none;">
-                    </li>
-                     <li class="nav-item">
-                        <button id="link-tool" class="btn btn-dark" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
+                        <button data-tool="text" class="btn btn-light" title="Добавить текст"><i class="bi bi-fonts"></i></button>
                     </li>
                     <li class="nav-item">
-                        <button id="delete-tool" class="btn btn-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
+                        <label for="image-upload-desktop" class="btn btn-light" title="Добавить картинку"><i class="bi bi-image-fill"></i></label>
+                        <input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;">
                     </li>
-
-                    <!-- History -->
-                    <li class="nav-item ms-3 border-start ps-2">
-                        <button id="undo-button" class="btn btn-dark" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
+                    <li class="nav-item">
+                        <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
                     </li>
-                     <li class="nav-item">
-                        <button id="redo-button" class="btn btn-dark" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
-                    </li>
-
-                    <!-- Drawing Options -->
-                    <li class="nav-item ms-3">
-                        <label for="color-picker" class="form-label text-white">Цвет:</label>
-                        <input type="color" id="color-picker" class="form-control form-control-color" value="#11286E" title="Выбрать цвет">
+                    <li class="nav-item">
+                        <button data-tool="delete" class="btn btn-light text-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
                     </li>
                     <li class="nav-item ms-3">
-                         <label for="line-width" class="form-label text-white">Толщина:</label>
-                         <input type="range" id="line-width" class="form-range" min="1" max="50" value="5">
+                        <label for="color-picker-desktop" class="form-label small mb-0 me-1">Цвет:</label>
+                        <input type="color" id="color-picker-desktop" class="form-control form-control-color color-picker-input" value="#11286E" title="Выбрать цвет">
+                    </li>
+                    <li class="nav-item ms-3 d-flex align-items-center">
+                         <label for="line-width-desktop" class="form-label small mb-0 me-2">Толщина:</label>
+                         <input type="range" id="line-width-desktop" class="form-range line-width-slider" min="1" max="50" value="5">
                     </li>
                 </ul>
-                <!-- Page Navigation -->
-                <div class="d-flex align-items-center text-white">
-                    <button id="prev-page" class="btn btn-dark"><i class="bi bi-arrow-left-circle"></i></button>
-                    <span id="page-indicator" class="mx-2">Страница 1 / 1</span>
-                    <button id="next-page" class="btn btn-dark"><i class="bi bi-arrow-right-circle"></i></button>
-                    <button id="add-page" class="btn btn-primary ms-3"><i class="bi bi-plus-lg"></i> Новая страница</button>
-                    <button id="delete-page" class="btn btn-danger ms-2" title="Удалить текущую страницу"><i class="bi bi-trash-fill"></i></button>
-                </div>
+
+                <!-- Global Controls (History & Pages) -->
+                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+                    <li class="nav-item border-start ps-2">
+                        <button id="undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
+                    </li>
+                     <li class="nav-item">
+                        <button id="redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
+                    </li>
+                    <li class="nav-item d-flex align-items-center ms-lg-3 border-start ps-2">
+                        <button id="prev-page" class="btn btn-light"><i class="bi bi-arrow-left-circle"></i></button>
+                        <span id="page-indicator" class="mx-2 text-nowrap">Стр. 1 / 1</span>
+                        <button id="next-page" class="btn btn-light"><i class="bi bi-arrow-right-circle"></i></button>
+                        <button id="add-page" class="btn btn-primary ms-3 btn-sm"><i class="bi bi-plus-lg"></i></button>
+                        <button id="delete-page" class="btn btn-danger ms-2 btn-sm" title="Удалить текущую страницу"><i class="bi bi-trash-fill"></i></button>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
+
+    <!-- Mobile Toolbar (Visible only on mobile) -->
+    <div id="mobile-toolbar" class="d-lg-none">
+        <button data-tool="select" class="btn btn-light active" title="Выбрать"><i class="bi bi-cursor-fill"></i></button>
+        <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
+        <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
+        <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
+        <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
+        <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
+        <input type="color" id="color-picker-mobile" class="form-control form-control-color color-picker-input" value="#11286E" title="Цвет">
+        <input type="range" id="line-width-mobile" class="form-range line-width-slider w-25" min="1" max="50" value="5" title="Толщина">
+        <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
+    </div>
 
     <!-- Main Canvas Area -->
     <main id="canvas-container">
