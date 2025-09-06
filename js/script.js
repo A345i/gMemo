@@ -88,7 +88,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- NEW, ROBUST AUTH HANDLING ---
 
-        // This function sets up the application based on a valid session.
         const setupAuthenticatedApp = async (session) => {
             currentUser = session.user;
             await loadNotesFromSupabase();
@@ -99,7 +98,6 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         };
 
-        // This function resets the UI to the login page.
         const setupLoginPage = () => {
             currentUser = null;
             authContainer.classList.remove('d-none');
@@ -110,36 +108,18 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         };
 
-        // The main function to start the application.
         const initializeApp = async () => {
             showLoader();
-            // getSession() is the reliable way to check for a session on page load.
-            // It waits for the client to be fully initialized.
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            
-            if (error) {
-                console.error("Error getting session:", error);
-                setupLoginPage();
-                return;
-            }
-
-            if (session) {
-                await setupAuthenticatedApp(session);
-            } else {
-                setupLoginPage();
-            }
+            if (error) { console.error("Error getting session:", error); setupLoginPage(); return; }
+            if (session) { await setupAuthenticatedApp(session); } else { setupLoginPage(); }
         };
 
-        // onAuthStateChange now only handles events that happen *after* the initial page load.
         supabaseClient.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN') {
-                setupAuthenticatedApp(session);
-            } else if (event === 'SIGNED_OUT') {
-                setupLoginPage();
-            }
+            if (event === 'SIGNED_IN') { setupAuthenticatedApp(session); } 
+            else if (event === 'SIGNED_OUT') { setupLoginPage(); }
         });
 
-        // Start the application.
         initializeApp();
 
         // --- Canvas & App Logic ---
@@ -149,69 +129,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const resizeCanvas = () => { if (!appContainer.classList.contains('d-none')) { const { clientWidth, clientHeight } = canvasContainer; fabricCanvas.setWidth(clientWidth).setHeight(clientHeight).renderAll(); } };
         window.addEventListener('resize', resizeCanvas);
         
-        // --- NEW, ROBUST CANVAS INTERACTION LOGIC ---
+        // --- FINAL, RELIABLE TOUCH & MOUSE CONTROLS ---
 
-        let isPanning = false; // True when panning/zooming (mouse or touch)
-        let panMode = 'none'; // 'mouse' or 'touch'
+        let isPanning = false;
+        let isTouching = false;
+        let drawingModeWasActive = false;
         let lastPosX, lastPosY;
-        let drawingModeWasActive = false; // To restore drawing mode after a gesture
+        let pinchStartDistance = 0;
+        let pinchStartZoom = 1;
 
         // Desktop: Zoom with Alt+Scroll
         fabricCanvas.on('mouse:wheel', function(opt) {
             if (!opt.e.altKey) return;
+            opt.e.preventDefault();
+            opt.e.stopPropagation();
             const delta = opt.e.deltaY;
             let zoom = fabricCanvas.getZoom();
             zoom *= 0.999 ** delta;
             if (zoom > 20) zoom = 20;
             if (zoom < 0.01) zoom = 0.01;
             fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-            opt.e.preventDefault();
-            opt.e.stopPropagation();
         });
 
-        // Touch: Zoom with Pinch Gesture
-        fabricCanvas.on('touch:gesture', function(opt) {
-            if (opt.e.touches && opt.e.touches.length === 2) {
-                let zoom = fabricCanvas.getZoom();
-                zoom *= opt.self.scale;
-                if (zoom > 20) zoom = 20;
-                if (zoom < 0.01) zoom = 0.01;
-                fabricCanvas.zoomToPoint({ x: opt.self.x, y: opt.self.y }, zoom);
-            }
-        });
-
-        // Mouse & Touch: Panning and Tool Interaction
+        // Desktop: Pan with Alt+Drag
         fabricCanvas.on('mouse:down', function(opt) {
-            const e = opt.e;
-            // Touch gesture start (second finger touches down)
-            if (e.touches && e.touches.length === 2) {
-                if (fabricCanvas.isDrawingMode) {
-                    drawingModeWasActive = true;
-                    fabricCanvas.isDrawingMode = false;
-                }
+            if (opt.e.altKey) {
                 isPanning = true;
-                panMode = 'touch';
-                fabricCanvas.discardActiveObject().renderAll();
-                fabricCanvas.selection = false; // Disable selection during gesture
-                lastPosX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                lastPosY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                return;
-            }
-
-            // Desktop panning start (Alt + Click)
-            if (e.altKey) {
-                isPanning = true;
-                panMode = 'mouse';
                 fabricCanvas.selection = false;
-                lastPosX = e.clientX;
-                lastPosY = e.clientY;
+                lastPosX = opt.e.clientX;
+                lastPosY = opt.e.clientY;
                 fabricCanvas.setCursor('grabbing');
-                return;
-            }
-
-            // Single touch/click for tools
-            if (currentTool === 'text' && !opt.target) {
-                const pointer = fabricCanvas.getPointer(e);
+            } else if (currentTool === 'text' && !opt.target && !isTouching) {
+                const pointer = fabricCanvas.getPointer(opt.e);
                 const text = new fabric.IText('Текст', { left: pointer.x, top: pointer.y, fill: colorPickers[0].value, fontSize: 24, fontFamily: 'Arial', originX: 'center', originY: 'center' });
                 fabricCanvas.add(text);
                 fabricCanvas.setActiveObject(text);
@@ -223,50 +172,94 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fabricCanvas.on('mouse:move', function(opt) {
             if (isPanning) {
-                const e = opt.e;
                 const vpt = this.viewportTransform;
-                let currentX, currentY;
-
-                if (panMode === 'touch') {
-                    if (!e.touches || e.touches.length < 2) return;
-                    currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                    currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                } else { // panMode === 'mouse'
-                    currentX = e.clientX;
-                    currentY = e.clientY;
-                }
-
-                vpt[4] += currentX - lastPosX;
-                vpt[5] += currentY - lastPosY;
+                vpt[4] += opt.e.clientX - lastPosX;
+                vpt[5] += opt.e.clientY - lastPosY;
                 this.requestRenderAll();
-                lastPosX = currentX;
-                lastPosY = currentY;
+                lastPosX = opt.e.clientX;
+                lastPosY = opt.e.clientY;
             }
         });
 
         fabricCanvas.on('mouse:up', function(opt) {
-            const wasPanning = isPanning;
-
-            // Reset panning state
-            isPanning = false;
-            panMode = 'none';
-            fabricCanvas.selection = true;
-            fabricCanvas.setCursor('default');
-            if (drawingModeWasActive) {
-                fabricCanvas.isDrawingMode = true;
-                drawingModeWasActive = false;
-            }
-
-            // If we just finished a pan/zoom, do nothing else.
-            if (wasPanning) {
-                return;
-            }
-
-            // Handle link clicks only if it was not a panning operation.
-            if (opt.target && opt.target.isLink && !opt.target.isEditing) {
+            if (isPanning) {
+                isPanning = false;
+                fabricCanvas.selection = true;
+                fabricCanvas.setCursor('default');
+            } else if (opt.target && opt.target.isLink && !opt.target.isEditing) {
                 window.open(opt.target.url, '_blank');
             }
         });
+
+        // --- Touch Controls using native browser events ---
+        const canvasEl = fabricCanvas.getElement().parentElement; // The .canvas-container
+
+        const getTouchDistance = (touches) => {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        };
+
+        const getTouchCenter = (touches) => {
+            return {
+                x: (touches[0].clientX + touches[1].clientX) / 2,
+                y: (touches[0].clientY + touches[1].clientY) / 2,
+            };
+        };
+
+        canvasEl.addEventListener('touchstart', (e) => {
+            isTouching = true;
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                isPanning = true;
+                if (fabricCanvas.isDrawingMode) {
+                    drawingModeWasActive = true;
+                    fabricCanvas.isDrawingMode = false;
+                }
+                fabricCanvas.selection = false;
+                pinchStartDistance = getTouchDistance(e.touches);
+                pinchStartZoom = fabricCanvas.getZoom();
+                const center = getTouchCenter(e.touches);
+                lastPosX = center.x;
+                lastPosY = center.y;
+            }
+        }, { passive: false });
+
+        canvasEl.addEventListener('touchmove', (e) => {
+            if (e.touches.length === 2 && isPanning) {
+                e.preventDefault();
+                const center = getTouchCenter(e.touches);
+                const vpt = fabricCanvas.viewportTransform;
+                
+                // Pan
+                vpt[4] += center.x - lastPosX;
+                vpt[5] += center.y - lastPosY;
+                
+                // Zoom
+                const newDist = getTouchDistance(e.touches);
+                const zoom = pinchStartZoom * (newDist / pinchStartDistance);
+                fabricCanvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom);
+
+                fabricCanvas.requestRenderAll();
+                lastPosX = center.x;
+                lastPosY = center.y;
+            }
+        }, { passive: false });
+
+        canvasEl.addEventListener('touchend', (e) => {
+            if (isPanning) {
+                isPanning = false;
+                fabricCanvas.selection = true;
+                if (drawingModeWasActive) {
+                    fabricCanvas.isDrawingMode = true;
+                    drawingModeWasActive = false;
+                }
+            }
+            if (e.touches.length === 0) {
+                isTouching = false;
+            }
+        }, { passive: false });
+
 
         const updateHistoryButtons = () => { historyButtons.undo.disabled = history.length <= 1; historyButtons.redo.disabled = redoStack.length === 0; };
         const resetHistory = (initialState = null) => { const state = initialState || fabricCanvas.toJSON(['isLink', 'url']); history = [state]; redoStack = []; updateHistoryButtons(); };
@@ -281,7 +274,6 @@ document.addEventListener('DOMContentLoaded', () => {
             slider.addEventListener('input', (e) => {
                 const newWidth = parseInt(e.target.value, 10);
                 fabricCanvas.freeDrawingBrush.width = newWidth;
-                // Update both sliders and value displays simultaneously
                 lineWidthSliders.forEach(s => s.value = newWidth);
                 lineWidthValues.desktop.textContent = newWidth;
                 lineWidthValues.mobile.textContent = newWidth;
