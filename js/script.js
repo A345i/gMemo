@@ -87,7 +87,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const debouncedSave = _.debounce(saveNotesToSupabase, 2000);
 
         // --- NEW, ROBUST AUTH HANDLING ---
-
         const setupAuthenticatedApp = async (session) => {
             currentUser = session.user;
             await loadNotesFromSupabase();
@@ -131,12 +130,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // --- FINAL, RELIABLE TOUCH & MOUSE CONTROLS ---
 
-        let isPanning = false;
-        let isTouching = false;
+        let isPanning = false; // For mouse pan or touch gesture
+        let isTouching = false; // True if any fingers are on screen
         let drawingModeWasActive = false;
-        let lastPosX, lastPosY;
+        let lastPosX, lastPosY; // For mouse panning and touch center
+        
         let pinchStartDistance = 0;
         let pinchStartZoom = 1;
+        let touchStartTime = 0;
+        let lastTouchTarget = null;
 
         // Desktop: Zoom with Alt+Scroll
         fabricCanvas.on('mouse:wheel', function(opt) {
@@ -159,7 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastPosX = opt.e.clientX;
                 lastPosY = opt.e.clientY;
                 fabricCanvas.setCursor('grabbing');
-            } else if (currentTool === 'text' && !opt.target && !isTouching) {
+            } else if (!isTouching && currentTool === 'text' && !opt.target) {
                 const pointer = fabricCanvas.getPointer(opt.e);
                 const text = new fabric.IText('Текст', { left: pointer.x, top: pointer.y, fill: colorPickers[0].value, fontSize: 24, fontFamily: 'Arial', originX: 'center', originY: 'center' });
                 fabricCanvas.add(text);
@@ -171,7 +173,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         fabricCanvas.on('mouse:move', function(opt) {
-            if (isPanning) {
+            if (isPanning && !isTouching) { // Only pan with mouse if not touching
                 const vpt = this.viewportTransform;
                 vpt[4] += opt.e.clientX - lastPosX;
                 vpt[5] += opt.e.clientY - lastPosY;
@@ -182,17 +184,17 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         fabricCanvas.on('mouse:up', function(opt) {
-            if (isPanning) {
+            if (isPanning && !isTouching) {
                 isPanning = false;
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
-            } else if (opt.target && opt.target.isLink && !opt.target.isEditing) {
+            } else if (!isTouching && opt.target && opt.target.isLink && !opt.target.isEditing) {
                 window.open(opt.target.url, '_blank');
             }
         });
 
         // --- Touch Controls using native browser events ---
-        const canvasEl = fabricCanvas.getElement().parentElement; // The .canvas-container
+        const canvasEl = fabricCanvas.getElement().parentElement;
 
         const getTouchDistance = (touches) => {
             const dx = touches[0].clientX - touches[1].clientX;
@@ -200,15 +202,17 @@ document.addEventListener('DOMContentLoaded', () => {
             return Math.sqrt(dx * dx + dy * dy);
         };
 
-        const getTouchCenter = (touches) => {
-            return {
-                x: (touches[0].clientX + touches[1].clientX) / 2,
-                y: (touches[0].clientY + touches[1].clientY) / 2,
-            };
-        };
+        const getTouchCenter = (touches) => ({
+            x: (touches[0].clientX + touches[1].clientX) / 2,
+            y: (touches[0].clientY + touches[1].clientY) / 2,
+        });
 
         canvasEl.addEventListener('touchstart', (e) => {
             isTouching = true;
+            if (e.touches.length === 1) {
+                touchStartTime = Date.now();
+                lastTouchTarget = fabricCanvas.findTarget(e, false);
+            }
             if (e.touches.length === 2) {
                 e.preventDefault();
                 isPanning = true;
@@ -228,17 +232,26 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEl.addEventListener('touchmove', (e) => {
             if (e.touches.length === 2 && isPanning) {
                 e.preventDefault();
-                const center = getTouchCenter(e.touches);
                 const vpt = fabricCanvas.viewportTransform;
+                const center = getTouchCenter(e.touches);
                 
                 // Pan
                 vpt[4] += center.x - lastPosX;
                 vpt[5] += center.y - lastPosY;
-                
+
                 // Zoom
-                const newDist = getTouchDistance(e.touches);
-                const zoom = pinchStartZoom * (newDist / pinchStartDistance);
-                fabricCanvas.zoomToPoint(new fabric.Point(center.x, center.y), zoom);
+                const currentDist = getTouchDistance(e.touches);
+                const zoomRatio = currentDist / pinchStartDistance;
+                const newZoom = pinchStartZoom * zoomRatio;
+                
+                const oldZoom = vpt[0];
+                const clampedZoom = Math.max(0.01, Math.min(20, newZoom));
+                const zoomFactor = clampedZoom / oldZoom;
+
+                vpt[0] = clampedZoom;
+                vpt[3] = clampedZoom;
+                vpt[4] = center.x - (center.x - vpt[4]) * zoomFactor;
+                vpt[5] = center.y - (center.y - vpt[5]) * zoomFactor;
 
                 fabricCanvas.requestRenderAll();
                 lastPosX = center.x;
@@ -247,7 +260,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         canvasEl.addEventListener('touchend', (e) => {
-            if (isPanning) {
+            const touchDuration = Date.now() - touchStartTime;
+            if (e.touches.length === 0 && e.changedTouches.length === 1 && !isPanning && touchDuration < 250) {
+                 if (lastTouchTarget && lastTouchTarget.isLink) {
+                     window.open(lastTouchTarget.url, '_blank');
+                 }
+            }
+            if (isPanning && e.touches.length < 2) {
                 isPanning = false;
                 fabricCanvas.selection = true;
                 if (drawingModeWasActive) {
@@ -257,9 +276,9 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (e.touches.length === 0) {
                 isTouching = false;
+                lastTouchTarget = null;
             }
         }, { passive: false });
-
 
         const updateHistoryButtons = () => { historyButtons.undo.disabled = history.length <= 1; historyButtons.redo.disabled = redoStack.length === 0; };
         const resetHistory = (initialState = null) => { const state = initialState || fabricCanvas.toJSON(['isLink', 'url']); history = [state]; redoStack = []; updateHistoryButtons(); };
