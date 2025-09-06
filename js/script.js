@@ -24,8 +24,19 @@ document.addEventListener('DOMContentLoaded', () => {
             mobile: document.getElementById('line-width-value-mobile')
         };
         const imageUploadInputs = document.querySelectorAll('.image-upload-input');
-        const historyButtons = { undo: document.getElementById('undo-button'), redo: document.getElementById('redo-button') };
+        const historyButtons = { 
+            undo: document.getElementById('undo-button'), 
+            redo: document.getElementById('redo-button'),
+            mobileUndo: document.getElementById('mobile-undo-button'),
+            mobileRedo: document.getElementById('mobile-redo-button')
+        };
         const pageControls = { prev: document.getElementById('prev-page'), next: document.getElementById('next-page'), add: document.getElementById('add-page'), delete: document.getElementById('delete-page'), indicator: document.getElementById('page-indicator') };
+        
+        // --- Mobile Draw Options Elements ---
+        const mobileDrawOptions = document.getElementById('mobile-draw-options');
+        const widthIncreaseBtn = document.getElementById('width-increase-mobile');
+        const widthDecreaseBtn = document.getElementById('width-decrease-mobile');
+
 
         // --- App State ---
         let pages = [null];
@@ -43,6 +54,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Fabric.js Canvas Initialization ---
         const fabricCanvas = new fabric.Canvas(canvasElement, { isDrawingMode: false, backgroundColor: '#fff' });
+        
+        // Sync initial brush settings with UI defaults
+        const initialLineWidth = parseInt(lineWidthSliders[0].value, 10);
+        const initialColor = colorPickers[0].value;
+        fabricCanvas.freeDrawingBrush.width = initialLineWidth;
+        fabricCanvas.freeDrawingBrush.color = initialColor;
         
         // --- Auth Functions ---
         const showError = (message) => { authError.textContent = message; authError.classList.remove('d-none'); };
@@ -129,18 +146,15 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('resize', resizeCanvas);
         
         // --- FINAL, RELIABLE TOUCH & MOUSE CONTROLS ---
-
-        let isPanning = false; // For mouse pan or touch gesture
-        let isTouching = false; // True if any fingers are on screen
+        let isPanning = false;
+        let isTouching = false;
         let drawingModeWasActive = false;
-        let lastPosX, lastPosY; // For mouse panning and touch center
-        
+        let lastPosX, lastPosY;
         let pinchStartDistance = 0;
         let pinchStartZoom = 1;
         let touchStartTime = 0;
         let lastTouchTarget = null;
 
-        // Desktop: Zoom with Alt+Scroll
         fabricCanvas.on('mouse:wheel', function(opt) {
             if (!opt.e.altKey) return;
             opt.e.preventDefault();
@@ -153,7 +167,6 @@ document.addEventListener('DOMContentLoaded', () => {
             fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
         });
 
-        // Desktop: Pan with Alt+Drag
         fabricCanvas.on('mouse:down', function(opt) {
             if (opt.e.altKey) {
                 isPanning = true;
@@ -173,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         fabricCanvas.on('mouse:move', function(opt) {
-            if (isPanning && !isTouching) { // Only pan with mouse if not touching
+            if (isPanning && !isTouching) {
                 const vpt = this.viewportTransform;
                 vpt[4] += opt.e.clientX - lastPosX;
                 vpt[5] += opt.e.clientY - lastPosY;
@@ -193,19 +206,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // --- Touch Controls using native browser events ---
         const canvasEl = fabricCanvas.getElement().parentElement;
-
         const getTouchDistance = (touches) => {
             const dx = touches[0].clientX - touches[1].clientX;
             const dy = touches[0].clientY - touches[1].clientY;
             return Math.sqrt(dx * dx + dy * dy);
         };
-
-        const getTouchCenter = (touches) => ({
-            x: (touches[0].clientX + touches[1].clientX) / 2,
-            y: (touches[0].clientY + touches[1].clientY) / 2,
-        });
+        const getTouchCenter = (touches) => ({ x: (touches[0].clientX + touches[1].clientX) / 2, y: (touches[0].clientY + touches[1].clientY) / 2 });
 
         canvasEl.addEventListener('touchstart', (e) => {
             isTouching = true;
@@ -232,27 +239,14 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEl.addEventListener('touchmove', (e) => {
             if (e.touches.length === 2 && isPanning) {
                 e.preventDefault();
-                const vpt = fabricCanvas.viewportTransform;
                 const center = getTouchCenter(e.touches);
-                
-                // Pan
+                const vpt = fabricCanvas.viewportTransform;
                 vpt[4] += center.x - lastPosX;
                 vpt[5] += center.y - lastPosY;
-
-                // Zoom
                 const currentDist = getTouchDistance(e.touches);
                 const zoomRatio = currentDist / pinchStartDistance;
                 const newZoom = pinchStartZoom * zoomRatio;
-                
-                const oldZoom = vpt[0];
-                const clampedZoom = Math.max(0.01, Math.min(20, newZoom));
-                const zoomFactor = clampedZoom / oldZoom;
-
-                vpt[0] = clampedZoom;
-                vpt[3] = clampedZoom;
-                vpt[4] = center.x - (center.x - vpt[4]) * zoomFactor;
-                vpt[5] = center.y - (center.y - vpt[5]) * zoomFactor;
-
+                fabricCanvas.zoomToPoint(new fabric.Point(vpt[4], vpt[5]), newZoom);
                 fabricCanvas.requestRenderAll();
                 lastPosX = center.x;
                 lastPosY = center.y;
@@ -262,9 +256,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEl.addEventListener('touchend', (e) => {
             const touchDuration = Date.now() - touchStartTime;
             if (e.touches.length === 0 && e.changedTouches.length === 1 && !isPanning && touchDuration < 250) {
-                 if (lastTouchTarget && lastTouchTarget.isLink) {
-                     window.open(lastTouchTarget.url, '_blank');
-                 }
+                 if (lastTouchTarget && lastTouchTarget.isLink) { window.open(lastTouchTarget.url, '_blank'); }
             }
             if (isPanning && e.touches.length < 2) {
                 isPanning = false;
@@ -274,30 +266,112 @@ document.addEventListener('DOMContentLoaded', () => {
                     drawingModeWasActive = false;
                 }
             }
-            if (e.touches.length === 0) {
-                isTouching = false;
-                lastTouchTarget = null;
-            }
+            if (e.touches.length === 0) { isTouching = false; lastTouchTarget = null; }
         }, { passive: false });
 
-        const updateHistoryButtons = () => { historyButtons.undo.disabled = history.length <= 1; historyButtons.redo.disabled = redoStack.length === 0; };
-        const resetHistory = (initialState = null) => { const state = initialState || fabricCanvas.toJSON(['isLink', 'url']); history = [state]; redoStack = []; updateHistoryButtons(); };
-        historyButtons.undo.addEventListener('click', () => { if (history.length > 1) { historyLock = true; redoStack.push(history.pop()); const prevState = history[history.length - 1]; fabricCanvas.loadFromJSON(prevState, () => { fabricCanvas.renderAll(); historyLock = false; updateHistoryButtons(); }); } });
-        historyButtons.redo.addEventListener('click', () => { if (redoStack.length > 0) { historyLock = true; const nextState = redoStack.pop(); history.push(nextState); fabricCanvas.loadFromJSON(nextState, () => { fabricCanvas.renderAll(); historyLock = false; updateHistoryButtons(); }); } });
+        const updateHistoryButtons = () => {
+            const undoDisabled = history.length <= 1;
+            const redoDisabled = redoStack.length === 0;
+            historyButtons.undo.disabled = undoDisabled;
+            historyButtons.mobileUndo.disabled = undoDisabled;
+            historyButtons.redo.disabled = redoDisabled;
+            historyButtons.mobileRedo.disabled = redoDisabled;
+        };
+
+        const resetHistory = (initialState = null) => {
+            const state = initialState || fabricCanvas.toJSON(['isLink', 'url']);
+            history = [state];
+            redoStack = [];
+            updateHistoryButtons();
+        };
+
+        const undo = () => {
+            if (history.length > 1) {
+                historyLock = true;
+                redoStack.push(history.pop());
+                const prevState = history[history.length - 1];
+                fabricCanvas.loadFromJSON(prevState, () => {
+                    fabricCanvas.renderAll();
+                    historyLock = false;
+                    updateHistoryButtons();
+                });
+            }
+        };
+
+        const redo = () => {
+            if (redoStack.length > 0) {
+                historyLock = true;
+                const nextState = redoStack.pop();
+                history.push(nextState);
+                fabricCanvas.loadFromJSON(nextState, () => {
+                    fabricCanvas.renderAll();
+                    historyLock = false;
+                    updateHistoryButtons();
+                });
+            }
+        };
+
+        historyButtons.undo.addEventListener('click', undo);
+        historyButtons.mobileUndo.addEventListener('click', undo);
+        historyButtons.redo.addEventListener('click', redo);
+        historyButtons.mobileRedo.addEventListener('click', redo);
+
         const saveCurrentPage = () => pages[currentPageIndex] = fabricCanvas.toJSON(['isLink', 'url']);
         const updatePageIndicator = () => { pageControls.indicator.textContent = `Стр. ${currentPageIndex + 1} / ${pages.length}`; };
-        const setActiveTool = (tool) => { currentTool = tool; fabricCanvas.isDrawingMode = tool === 'draw'; toolButtons.forEach(btn => { btn.classList.toggle('active', btn.dataset.tool === tool); }); };
-        toolButtons.forEach(btn => { btn.addEventListener('click', (e) => { const tool = e.currentTarget.dataset.tool; if (tool) { if (tool === 'delete') { fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj)); fabricCanvas.discardActiveObject().renderAll(); } else if (tool === 'link') { const url = prompt("Введите URL ссылки:", "https://"); if (!url) return; const text = prompt("Введите текст для ссылки:", "Моя ссылка"); if (!text) return; const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url }); fabricCanvas.add(linkText); } else { setActiveTool(tool); } } }); });
-        colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; fabricCanvas.freeDrawingBrush.color = newColor; colorPickers.forEach(p => p.value = newColor); }); });
-        lineWidthSliders.forEach(slider => {
-            slider.addEventListener('input', (e) => {
-                const newWidth = parseInt(e.target.value, 10);
-                fabricCanvas.freeDrawingBrush.width = newWidth;
-                lineWidthSliders.forEach(s => s.value = newWidth);
-                lineWidthValues.desktop.textContent = newWidth;
-                lineWidthValues.mobile.textContent = newWidth;
+        
+        const setActiveTool = (tool) => {
+            currentTool = tool;
+            fabricCanvas.isDrawingMode = tool === 'draw';
+            toolButtons.forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tool === tool);
+            });
+            // Toggle mobile draw options
+            if (tool === 'draw') {
+                mobileDrawOptions.classList.add('active');
+                document.body.classList.add('draw-tool-active');
+            } else {
+                mobileDrawOptions.classList.remove('active');
+                document.body.classList.remove('draw-tool-active');
+            }
+            // Use a timeout to ensure the DOM has updated before resizing
+            setTimeout(resizeCanvas, 210); // 210ms is slightly longer than the CSS transition
+        };
+
+        toolButtons.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const tool = e.currentTarget.dataset.tool;
+                if (tool) {
+                    if (tool === 'delete') {
+                        fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
+                        fabricCanvas.discardActiveObject().renderAll();
+                    } else if (tool === 'link') {
+                        const url = prompt("Введите URL ссылки:", "https://");
+                        if (!url) return;
+                        const text = prompt("Введите текст для ссылки:", "Моя ссылка");
+                        if (!text) return;
+                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url });
+                        fabricCanvas.add(linkText);
+                    } else {
+                        setActiveTool(tool);
+                    }
+                }
             });
         });
+
+        colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; fabricCanvas.freeDrawingBrush.color = newColor; colorPickers.forEach(p => p.value = newColor); }); });
+        
+        const updateLineWidth = (newWidth) => {
+            const clampedWidth = Math.max(1, Math.min(50, newWidth));
+            fabricCanvas.freeDrawingBrush.width = clampedWidth;
+            lineWidthSliders.forEach(s => s.value = clampedWidth);
+            lineWidthValues.desktop.textContent = clampedWidth;
+            lineWidthValues.mobile.textContent = clampedWidth;
+        };
+
+        lineWidthSliders.forEach(slider => { slider.addEventListener('input', (e) => updateLineWidth(parseInt(e.target.value, 10))); });
+        widthIncreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width + 1));
+        widthDecreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width - 1));
+
         imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
         window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
         
