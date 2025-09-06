@@ -153,12 +153,20 @@
             <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
             <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
             <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
+            <button id="mobile-undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button id="mobile-redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
+            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
+        </div>
+
+        <!-- Mobile Drawing Options (conditionally visible) -->
+        <div id="mobile-draw-options" class="d-lg-none">
             <input type="color" id="color-picker-mobile" class="form-control form-control-color color-picker-input" value="#11286E" title="Цвет">
+            <button id="width-decrease-mobile" class="btn btn-light" title="Уменьшить толщину"><i class="bi bi-dash-lg"></i></button>
             <div class="d-flex align-items-center mx-2" style="flex: 2;">
                 <input type="range" id="line-width-mobile" class="form-range line-width-slider" min="1" max="50" value="5" title="Толщина">
-                <span id="line-width-value-mobile" class="ms-2 small fw-bold">5</span>
             </div>
-            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
+            <span id="line-width-value-mobile" class="small fw-bold">5</span>
+            <button id="width-increase-mobile" class="btn btn-light" title="Увеличить толщину"><i class="bi bi-plus-lg"></i></button>
         </div>
 
         <!-- Main Canvas Area -->
