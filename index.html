@@ -13,87 +13,164 @@
 </head>
 <body>
 
-    <!-- Top Toolbar (Navbar) -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top border-bottom">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="#">gMemo</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#toolbar" aria-controls="toolbar" aria-expanded="false" aria-label="Toggle navigation">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="toolbar">
-                <!-- Desktop Tools (Hidden on Mobile) -->
-                <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center d-none d-lg-flex">
-                    <li class="nav-item">
-                        <button data-tool="select" class="btn btn-light active" title="Выбрать и перемещать"><i class="bi bi-arrows-move"></i></button>
-                    </li>
-                    <li class="nav-item">
-                        <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
-                    </li>
-                    <li class="nav-item">
-                        <button data-tool="text" class="btn btn-light" title="Добавить текст"><i class="bi bi-fonts"></i></button>
-                    </li>
-                    <li class="nav-item">
-                        <label for="image-upload-desktop" class="btn btn-light" title="Добавить картинку"><i class="bi bi-image-fill"></i></label>
-                        <input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;">
-                    </li>
-                    <li class="nav-item">
-                        <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
-                    </li>
-                    <li class="nav-item">
-                        <button data-tool="delete" class="btn btn-light text-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
-                    </li>
-                    <li class="nav-item ms-3">
-                        <label for="color-picker-desktop" class="form-label small mb-0 me-1">Цвет:</label>
-                        <input type="color" id="color-picker-desktop" class="form-control form-control-color color-picker-input" value="#11286E" title="Выбрать цвет">
-                    </li>
-                    <li class="nav-item ms-3 d-flex align-items-center">
-                         <label for="line-width-desktop" class="form-label small mb-0 me-2">Толщина:</label>
-                         <input type="range" id="line-width-desktop" class="form-range line-width-slider" min="1" max="50" value="5">
-                    </li>
-                </ul>
-
-                <!-- Global Controls (History & Pages) -->
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
-                    <li class="nav-item d-flex align-items-center border-start ps-2">
-                        <button id="undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
-                        <button id="redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
-                        <div class="vr mx-2"></div>
-                        <button id="export-button" class="btn btn-light" title="Экспорт заметок"><i class="bi bi-box-arrow-down"></i></button>
-                        <label for="import-input" id="import-button" class="btn btn-light mb-0" title="Импорт заметок"><i class="bi bi-box-arrow-in-up"></i></label>
-                    </li>
-                    <li class="nav-item d-flex align-items-center ms-lg-3 border-start ps-2">
-                        <button id="prev-page" class="btn btn-light"><i class="bi bi-arrow-left-circle"></i></button>
-                        <span id="page-indicator" class="mx-2 text-nowrap">Стр. 1 / 1</span>
-                        <button id="next-page" class="btn btn-light"><i class="bi bi-arrow-right-circle"></i></button>
-                        <button id="add-page" class="btn btn-primary ms-3 btn-sm"><i class="bi bi-plus-lg"></i></button>
-                        <button id="delete-page" class="btn btn-danger ms-2 btn-sm" title="Удалить текущую страницу"><i class="bi bi-trash-fill"></i></button>
-                    </li>
-                </ul>
-            </div>
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center d-none" style="background-color: rgba(255, 255, 255, 0.7); z-index: 1060;">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Загрузка...</span>
         </div>
-    </nav>
-
-    <!-- Mobile Toolbar (Visible only on mobile) -->
-    <div id="mobile-toolbar" class="d-lg-none">
-        <button data-tool="select" class="btn btn-light active" title="Выбрать"><i class="bi bi-arrows-move"></i></button>
-        <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
-        <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
-        <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
-        <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
-        <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
-        <input type="color" id="color-picker-mobile" class="form-control form-control-color color-picker-input" value="#11286E" title="Цвет">
-        <input type="range" id="line-width-mobile" class="form-range line-width-slider w-25" min="1" max="50" value="5" title="Толщина">
-        <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
     </div>
 
-    <!-- Main Canvas Area -->
-    <main id="canvas-container">
-        <canvas id="canvas"></canvas>
-    </main>
+    <!-- Auth Container -->
+    <div id="auth-container" class="container">
+        <div class="row justify-content-center align-items-center vh-100">
+            <div class="col-md-6 col-lg-4">
+                <div class="card shadow">
+                    <div class="card-body">
+                        <h2 class="text-center mb-4">gMemo</h2>
+                        <div id="auth-error" class="alert alert-danger d-none" role="alert"></div>
+                        <!-- Auth Tabs -->
+                        <ul class="nav nav-pills nav-fill mb-3" id="pills-tab" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="pills-login-tab" data-bs-toggle="pill" data-bs-target="#pills-login" type="button" role="tab" aria-controls="pills-login" aria-selected="true">Вход</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="pills-register-tab" data-bs-toggle="pill" data-bs-target="#pills-register" type="button" role="tab" aria-controls="pills-register" aria-selected="false">Регистрация</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content" id="pills-tabContent">
+                            <!-- Login Form -->
+                            <div class="tab-pane fade show active" id="pills-login" role="tabpanel" aria-labelledby="pills-login-tab">
+                                <form id="login-form">
+                                    <div class="mb-3">
+                                        <label for="login-email" class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="login-email" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="login-password" class="form-label">Пароль</label>
+                                        <input type="password" class="form-control" id="login-password" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">Войти</button>
+                                </form>
+                            </div>
+                            <!-- Registration Form -->
+                            <div class="tab-pane fade" id="pills-register" role="tabpanel" aria-labelledby="pills-register-tab">
+                                <form id="register-form">
+                                     <div class="mb-3">
+                                        <label for="register-username" class="form-label">Имя пользователя</label>
+                                        <input type="text" class="form-control" id="register-username" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="register-email" class="form-label">Email</label>
+                                        <input type="email" class="form-control" id="register-email" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="register-password" class="form-label">Пароль</label>
+                                        <input type="password" class="form-control" id="register-password" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary w-100">Зарегистрироваться</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-    <!-- Hidden file input for import -->
-    <input type="file" id="import-input" accept=".json" style="display: none;">
+    <!-- App Container (hidden by default) -->
+    <div id="app-container" class="d-none">
+        <!-- Top Toolbar (Navbar) -->
+        <nav class="navbar navbar-expand-lg navbar-light bg-light fixed-top border-bottom">
+            <div class="container-fluid">
+                <a class="navbar-brand fw-bold" href="#">gMemo</a>
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#toolbar" aria-controls="toolbar" aria-expanded="false" aria-label="Toggle navigation">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <div class="collapse navbar-collapse" id="toolbar">
+                    <!-- Desktop Tools (Hidden on Mobile) -->
+                    <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center d-none d-lg-flex">
+                        <li class="nav-item">
+                            <button data-tool="select" class="btn btn-light active" title="Выбрать и перемещать"><i class="bi bi-arrows-move"></i></button>
+                        </li>
+                        <li class="nav-item">
+                            <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
+                        </li>
+                        <li class="nav-item">
+                            <button data-tool="text" class="btn btn-light" title="Добавить текст"><i class="bi bi-fonts"></i></button>
+                        </li>
+                        <li class="nav-item">
+                            <label for="image-upload-desktop" class="btn btn-light" title="Добавить картинку"><i class="bi bi-image-fill"></i></label>
+                            <input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;">
+                        </li>
+                        <li class="nav-item">
+                            <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
+                        </li>
+                        <li class="nav-item">
+                            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
+                        </li>
+                        <li class="nav-item ms-3">
+                            <label for="color-picker-desktop" class="form-label small mb-0 me-1">Цвет:</label>
+                            <input type="color" id="color-picker-desktop" class="form-control form-control-color color-picker-input" value="#11286E" title="Выбрать цвет">
+                        </li>
+                        <li class="nav-item ms-3 d-flex align-items-center">
+                             <label for="line-width-desktop" class="form-label small mb-0 me-2">Толщина:</label>
+                             <input type="range" id="line-width-desktop" class="form-range line-width-slider" min="1" max="50" value="5">
+                             <span id="line-width-value-desktop" class="ms-2 fw-bold text-nowrap" style="min-width: 25px;">5</span>
+                        </li>
+                    </ul>
 
+                    <!-- Global Controls (History & Pages) -->
+                    <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+                        <li class="nav-item d-flex align-items-center border-start ps-2">
+                            <button id="undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
+                            <button id="redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
+                        </li>
+                        <li class="nav-item d-flex align-items-center ms-lg-3 border-start ps-2">
+                            <button id="prev-page" class="btn btn-light"><i class="bi bi-arrow-left-circle"></i></button>
+                            <span id="page-indicator" class="mx-2 text-nowrap">Стр. 1 / 1</span>
+                            <button id="next-page" class="btn btn-light"><i class="bi bi-arrow-right-circle"></i></button>
+                            <button id="add-page" class="btn btn-primary ms-3 btn-sm"><i class="bi bi-plus-lg"></i></button>
+                            <button id="delete-page" class="btn btn-danger ms-2 btn-sm" title="Удалить текущую страницу"><i class="bi bi-trash-fill"></i></button>
+                        </li>
+                         <li class="nav-item dropdown ms-lg-3 border-start ps-2">
+                            <a class="nav-link dropdown-toggle" href="#" id="user-dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-person-circle"></i> <span id="user-email-display"></span>
+                            </a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="user-dropdown">
+                                <li><button class="dropdown-item" id="logout-button">Выйти</button></li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Mobile Toolbar (Visible only on mobile) -->
+        <div id="mobile-toolbar" class="d-lg-none">
+            <button data-tool="select" class="btn btn-light active" title="Выбрать"><i class="bi bi-arrows-move"></i></button>
+            <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
+            <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
+            <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
+            <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
+            <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
+            <input type="color" id="color-picker-mobile" class="form-control form-control-color color-picker-input" value="#11286E" title="Цвет">
+            <div class="d-flex align-items-center mx-2" style="flex: 2;">
+                <input type="range" id="line-width-mobile" class="form-range line-width-slider" min="1" max="50" value="5" title="Толщина">
+                <span id="line-width-value-mobile" class="ms-2 small fw-bold">5</span>
+            </div>
+            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
+        </div>
+
+        <!-- Main Canvas Area -->
+        <main id="canvas-container">
+            <canvas id="canvas"></canvas>
+        </main>
+    </div>
+
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Lodash for debouncing -->
+    <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
     <!-- Fabric.js -->
     <script src="js/fabric.min.js"></script>
     <!-- Bootstrap JS -->
