@@ -148,10 +148,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if ('ontouchstart' in window) { fabric.Object.prototype.set({ cornerSize: 15, touchCornerSize: 44, transparentCorners: true, cornerColor: 'rgba(0,123,255,0.7)', borderColor: 'rgba(0,123,255,0.7)', cornerStyle: 'circle' }); }
         const resizeCanvas = () => { if (!appContainer.classList.contains('d-none')) { const { clientWidth, clientHeight } = canvasContainer; fabricCanvas.setWidth(clientWidth).setHeight(clientHeight).renderAll(); } };
         window.addEventListener('resize', resizeCanvas);
-        let isPanning = false, panMode = 'none', lastPosX, lastPosY;
-        let gestureJustEnded = false; // Флаг для предотвращения клика по ссылке после жеста
-        let drawingModeWasActive = false; // Флаг для восстановления режима рисования
+        
+        // --- NEW, ROBUST CANVAS INTERACTION LOGIC ---
 
+        let isPanning = false; // True when panning/zooming (mouse or touch)
+        let panMode = 'none'; // 'mouse' or 'touch'
+        let lastPosX, lastPosY;
+        let drawingModeWasActive = false; // To restore drawing mode after a gesture
+
+        // Desktop: Zoom with Alt+Scroll
         fabricCanvas.on('mouse:wheel', function(opt) {
             if (!opt.e.altKey) return;
             const delta = opt.e.deltaY;
@@ -164,38 +169,73 @@ document.addEventListener('DOMContentLoaded', () => {
             opt.e.stopPropagation();
         });
 
+        // Touch: Zoom with Pinch Gesture
         fabricCanvas.on('touch:gesture', function(opt) {
             if (opt.e.touches && opt.e.touches.length === 2) {
-                // При начале жеста отключаем режим рисования, если он был активен
-                if (!isPanning && fabricCanvas.isDrawingMode) {
-                    drawingModeWasActive = true;
-                    fabricCanvas.isDrawingMode = false;
-                }
-                isPanning = true; // Жест активен
-                panMode = 'touch';
-
-                // Масштабирование
                 let zoom = fabricCanvas.getZoom();
                 zoom *= opt.self.scale;
                 if (zoom > 20) zoom = 20;
                 if (zoom < 0.01) zoom = 0.01;
                 fabricCanvas.zoomToPoint({ x: opt.self.x, y: opt.self.y }, zoom);
+            }
+        });
 
-                // Панорамирование
-                const vpt = this.viewportTransform;
-                vpt[4] += opt.self.new_x - opt.self.x;
-                vpt[5] += opt.self.new_y - opt.self.y;
-                this.requestRenderAll();
+        // Mouse & Touch: Panning and Tool Interaction
+        fabricCanvas.on('mouse:down', function(opt) {
+            const e = opt.e;
+            // Touch gesture start (second finger touches down)
+            if (e.touches && e.touches.length === 2) {
+                if (fabricCanvas.isDrawingMode) {
+                    drawingModeWasActive = true;
+                    fabricCanvas.isDrawingMode = false;
+                }
+                isPanning = true;
+                panMode = 'touch';
+                fabricCanvas.discardActiveObject().renderAll();
+                fabricCanvas.selection = false; // Disable selection during gesture
+                lastPosX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                lastPosY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                return;
+            }
+
+            // Desktop panning start (Alt + Click)
+            if (e.altKey) {
+                isPanning = true;
+                panMode = 'mouse';
+                fabricCanvas.selection = false;
+                lastPosX = e.clientX;
+                lastPosY = e.clientY;
+                fabricCanvas.setCursor('grabbing');
+                return;
+            }
+
+            // Single touch/click for tools
+            if (currentTool === 'text' && !opt.target) {
+                const pointer = fabricCanvas.getPointer(e);
+                const text = new fabric.IText('Текст', { left: pointer.x, top: pointer.y, fill: colorPickers[0].value, fontSize: 24, fontFamily: 'Arial', originX: 'center', originY: 'center' });
+                fabricCanvas.add(text);
+                fabricCanvas.setActiveObject(text);
+                text.enterEditing();
+                text.selectAll();
+                setActiveTool('select');
             }
         });
 
         fabricCanvas.on('mouse:move', function(opt) {
-            const e = opt.e;
-            // Логика панорамирования для мыши (Alt + Drag)
-            if (isPanning && panMode === 'mouse') {
+            if (isPanning) {
+                const e = opt.e;
                 const vpt = this.viewportTransform;
-                const currentX = e.clientX;
-                const currentY = e.clientY;
+                let currentX, currentY;
+
+                if (panMode === 'touch') {
+                    if (!e.touches || e.touches.length < 2) return;
+                    currentX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    currentY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                } else { // panMode === 'mouse'
+                    currentX = e.clientX;
+                    currentY = e.clientY;
+                }
+
                 vpt[4] += currentX - lastPosX;
                 vpt[5] += currentY - lastPosY;
                 this.requestRenderAll();
@@ -203,6 +243,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastPosY = currentY;
             }
         });
+
+        fabricCanvas.on('mouse:up', function(opt) {
+            const wasPanning = isPanning;
+
+            // Reset panning state
+            isPanning = false;
+            panMode = 'none';
+            fabricCanvas.selection = true;
+            fabricCanvas.setCursor('default');
+            if (drawingModeWasActive) {
+                fabricCanvas.isDrawingMode = true;
+                drawingModeWasActive = false;
+            }
+
+            // If we just finished a pan/zoom, do nothing else.
+            if (wasPanning) {
+                return;
+            }
+
+            // Handle link clicks only if it was not a panning operation.
+            if (opt.target && opt.target.isLink && !opt.target.isEditing) {
+                window.open(opt.target.url, '_blank');
+            }
+        });
+
         const updateHistoryButtons = () => { historyButtons.undo.disabled = history.length <= 1; historyButtons.redo.disabled = redoStack.length === 0; };
         const resetHistory = (initialState = null) => { const state = initialState || fabricCanvas.toJSON(['isLink', 'url']); history = [state]; redoStack = []; updateHistoryButtons(); };
         historyButtons.undo.addEventListener('click', () => { if (history.length > 1) { historyLock = true; redoStack.push(history.pop()); const prevState = history[history.length - 1]; fabricCanvas.loadFromJSON(prevState, () => { fabricCanvas.renderAll(); historyLock = false; updateHistoryButtons(); }); } });
@@ -224,45 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
         window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
-        fabricCanvas.on('mouse:down', function(opt) {
-            if (opt.e.altKey) {
-                isPanning = true;
-                panMode = 'mouse';
-                fabricCanvas.selection = false;
-                lastPosX = opt.e.clientX;
-                lastPosY = opt.e.clientY;
-                fabricCanvas.setCursor('grabbing');
-                return; // Выходим, чтобы не создавать текст и т.д.
-            }
-            if (currentTool === 'text' && !opt.target && !isPanning) {
-                const pointer = fabricCanvas.getPointer(opt.e);
-                const text = new fabric.IText('Текст', { left: pointer.x, top: pointer.y, fill: colorPickers[0].value, fontSize: 24, fontFamily: 'Arial', originX: 'center', originY: 'center' });
-                fabricCanvas.add(text);
-                fabricCanvas.setActiveObject(text);
-                text.enterEditing();
-                text.selectAll();
-                setActiveTool('select');
-            }
-        });
-        fabricCanvas.on('mouse:up', function(opt) {
-            if (isPanning) {
-                if (panMode === 'touch') {
-                    gestureJustEnded = true;
-                    setTimeout(() => { gestureJustEnded = false; }, 200); // Сбрасываем флаг через короткое время
-                }
-                isPanning = false;
-                panMode = 'none';
-                fabricCanvas.selection = true;
-                fabricCanvas.setCursor('default');
-                // Восстанавливаем режим рисования, если он был активен до жеста
-                if (drawingModeWasActive) {
-                    fabricCanvas.isDrawingMode = true;
-                    drawingModeWasActive = false;
-                }
-            } else if (opt.target && opt.target.isLink && !opt.target.isEditing && !gestureJustEnded) {
-                window.open(opt.target.url, '_blank');
-            }
-        });
+        
         fabricCanvas.on({ 'object:added': saveState, 'object:removed': saveState, 'object:modified': saveState });
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
 
@@ -276,4 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error("A critical error occurred in the application script:", e);
         alert("Произошла критическая ошибка. Пожалуйста, проверьте консоль разработчика.");
     }
+});
+
+// --- Helper to prevent accidental closure ---
+window.addEventListener('beforeunload', (e) => {
+    if (document.getElementById('app-container').classList.contains('d-none')) {
+        return; // Don't show prompt on auth screen
+    }
+    e.preventDefault();
+    e.returnValue = '';
 });
