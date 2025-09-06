@@ -31,7 +31,14 @@ document.addEventListener('DOMContentLoaded', () => {
             mobileRedo: document.getElementById('mobile-redo-button'),
             showAll: document.getElementById('show-all-button')
         };
-        const pageControls = { prev: document.getElementById('prev-page'), next: document.getElementById('next-page'), add: document.getElementById('add-page'), delete: document.getElementById('delete-page'), indicator: document.getElementById('page-indicator') };
+        const pageControls = { 
+            prev: document.getElementById('prev-page'), 
+            next: document.getElementById('next-page'), 
+            add: document.getElementById('add-page'), 
+            delete: document.getElementById('delete-page'), 
+            indicator: document.getElementById('page-indicator'),
+            export: document.getElementById('export-button')
+        };
         
         // --- Mobile Draw Options Elements ---
         const mobileDrawOptions = document.getElementById('mobile-draw-options');
@@ -414,6 +421,19 @@ document.addEventListener('DOMContentLoaded', () => {
             saveState();
         }
 
+        function exportCanvas() {
+            const dataURL = fabricCanvas.toDataURL({
+                format: 'png',
+                quality: 1.0
+            });
+            const link = document.createElement('a');
+            link.href = dataURL;
+            link.download = `gMemo-page-${currentPageIndex + 1}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
         toolButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const tool = e.currentTarget.dataset.tool;
@@ -460,6 +480,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pageControls.next.addEventListener('click', async () => { if (currentPageIndex < pages.length - 1) { showLoader(); await saveNotesToSupabase(); loadPage(currentPageIndex + 1); hideLoader(); } });
         pageControls.add.addEventListener('click', async () => { showLoader(); await saveNotesToSupabase(); pages.push(null); loadPage(pages.length - 1); hideLoader(); });
         pageControls.delete.addEventListener('click', async () => { if (pages.length <= 1) { alert("Нельзя удалить последнюю страницу."); return; } if (confirm("Вы уверены, что хотите удалить эту страницу?")) { showLoader(); pages.splice(currentPageIndex, 1); if (currentPageIndex >= pages.length) currentPageIndex = pages.length - 1; loadPage(currentPageIndex); await saveNotesToSupabase(); hideLoader(); } });
+        pageControls.export.addEventListener('click', exportCanvas);
 
     } catch (e) {
         console.error("A critical error occurred in the application script:", e);
