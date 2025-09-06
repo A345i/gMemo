@@ -28,7 +28,8 @@ document.addEventListener('DOMContentLoaded', () => {
             undo: document.getElementById('undo-button'), 
             redo: document.getElementById('redo-button'),
             mobileUndo: document.getElementById('mobile-undo-button'),
-            mobileRedo: document.getElementById('mobile-redo-button')
+            mobileRedo: document.getElementById('mobile-redo-button'),
+            showAll: document.getElementById('show-all-button')
         };
         const pageControls = { prev: document.getElementById('prev-page'), next: document.getElementById('next-page'), add: document.getElementById('add-page'), delete: document.getElementById('delete-page'), indicator: document.getElementById('page-indicator') };
         
@@ -139,8 +140,43 @@ document.addEventListener('DOMContentLoaded', () => {
         initializeApp();
 
         // --- Canvas & App Logic ---
-        const saveState = () => { if (historyLock) return; redoStack = []; history.push(fabricCanvas.toJSON(['isLink', 'url'])); updateHistoryButtons(); debouncedSave(); };
-        const loadPage = (pageIndex) => { if (pageIndex < 0 || pageIndex >= pages.length) return; currentPageIndex = pageIndex; const pageData = pages[currentPageIndex]; historyLock = true; fabricCanvas.clear(); fabricCanvas.backgroundColor = '#fff'; if (pageData) { fabricCanvas.loadFromJSON(pageData, () => { fabricCanvas.renderAll(); resetHistory(pageData); historyLock = false; }); } else { fabricCanvas.renderAll(); resetHistory(); historyLock = false; } updatePageIndicator(); };
+        const saveState = () => { 
+            if (historyLock) return; 
+            redoStack = []; 
+            const state = fabricCanvas.toJSON(['isLink', 'url']);
+            state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
+            history.push(state); 
+            updateHistoryButtons(); 
+            debouncedSave(); 
+        };
+        
+        const loadPage = (pageIndex) => {
+            if (pageIndex < 0 || pageIndex >= pages.length) return;
+            currentPageIndex = pageIndex;
+            const pageData = pages[currentPageIndex];
+            historyLock = true;
+            fabricCanvas.clear();
+            fabricCanvas.backgroundColor = '#fff';
+            if (pageData) {
+                fabricCanvas.loadFromJSON(pageData, () => {
+                    if (pageData.viewportTransform) {
+                        fabricCanvas.setViewportTransform(pageData.viewportTransform);
+                    } else {
+                        fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                    }
+                    fabricCanvas.renderAll();
+                    resetHistory(pageData);
+                    historyLock = false;
+                });
+            } else {
+                fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                fabricCanvas.renderAll();
+                resetHistory();
+                historyLock = false;
+            }
+            updatePageIndicator();
+        };
+
         if ('ontouchstart' in window) { fabric.Object.prototype.set({ cornerSize: 15, touchCornerSize: 44, transparentCorners: true, cornerColor: 'rgba(0,123,255,0.7)', borderColor: 'rgba(0,123,255,0.7)', cornerStyle: 'circle' }); }
         const resizeCanvas = () => { if (!appContainer.classList.contains('d-none')) { const { clientWidth, clientHeight } = canvasContainer; fabricCanvas.setWidth(clientWidth).setHeight(clientHeight).renderAll(); } };
         window.addEventListener('resize', resizeCanvas);
@@ -201,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 isPanning = false;
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
+                saveState(); // Save state after panning
             } else if (!isTouching && opt.target && opt.target.isLink && !opt.target.isEditing) {
                 window.open(opt.target.url, '_blank');
             }
@@ -265,6 +302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     fabricCanvas.isDrawingMode = true;
                     drawingModeWasActive = false;
                 }
+                saveState(); // Save state after touch pan/zoom
             }
             if (e.touches.length === 0) { isTouching = false; lastTouchTarget = null; }
         }, { passive: false });
@@ -280,6 +318,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const resetHistory = (initialState = null) => {
             const state = initialState || fabricCanvas.toJSON(['isLink', 'url']);
+            if (!state.viewportTransform) {
+                state.viewportTransform = [1, 0, 0, 1, 0, 0];
+            }
             history = [state];
             redoStack = [];
             updateHistoryButtons();
@@ -291,6 +332,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 redoStack.push(history.pop());
                 const prevState = history[history.length - 1];
                 fabricCanvas.loadFromJSON(prevState, () => {
+                    if (prevState.viewportTransform) {
+                        fabricCanvas.setViewportTransform(prevState.viewportTransform);
+                    }
                     fabricCanvas.renderAll();
                     historyLock = false;
                     updateHistoryButtons();
@@ -304,6 +348,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const nextState = redoStack.pop();
                 history.push(nextState);
                 fabricCanvas.loadFromJSON(nextState, () => {
+                    if (nextState.viewportTransform) {
+                        fabricCanvas.setViewportTransform(nextState.viewportTransform);
+                    }
                     fabricCanvas.renderAll();
                     historyLock = false;
                     updateHistoryButtons();
@@ -315,8 +362,13 @@ document.addEventListener('DOMContentLoaded', () => {
         historyButtons.mobileUndo.addEventListener('click', undo);
         historyButtons.redo.addEventListener('click', redo);
         historyButtons.mobileRedo.addEventListener('click', redo);
+        historyButtons.showAll.addEventListener('click', showAll);
 
-        const saveCurrentPage = () => pages[currentPageIndex] = fabricCanvas.toJSON(['isLink', 'url']);
+        const saveCurrentPage = () => {
+            const pageData = fabricCanvas.toJSON(['isLink', 'url']);
+            pageData.viewportTransform = fabricCanvas.viewportTransform;
+            pages[currentPageIndex] = pageData;
+        };
         const updatePageIndicator = () => { pageControls.indicator.textContent = `Стр. ${currentPageIndex + 1} / ${pages.length}`; };
         
         const setActiveTool = (tool) => {
@@ -336,6 +388,31 @@ document.addEventListener('DOMContentLoaded', () => {
             // Use a timeout to ensure the DOM has updated before resizing
             setTimeout(resizeCanvas, 210); // 210ms is slightly longer than the CSS transition
         };
+
+        function showAll() {
+            fabricCanvas.discardActiveObject();
+            const objects = fabricCanvas.getObjects();
+            if (objects.length === 0) {
+                const newVpt = [1, 0, 0, 1, 0, 0];
+                fabricCanvas.setViewportTransform(newVpt);
+                fabricCanvas.renderAll();
+                saveState();
+                return;
+            }
+            const group = new fabric.Group(objects);
+            const aabb = group.getBoundingRect();
+            const canvasWidth = fabricCanvas.getWidth();
+            const canvasHeight = fabricCanvas.getHeight();
+            const scale = Math.min(canvasWidth / aabb.width, canvasHeight / aabb.height) * 0.95;
+            const newVpt = [...fabricCanvas.viewportTransform];
+            newVpt[0] = scale;
+            newVpt[3] = scale;
+            newVpt[4] = (canvasWidth - (aabb.width * scale)) / 2 - (aabb.left * scale);
+            newVpt[5] = (canvasHeight - (aabb.height * scale)) / 2 - (aabb.top * scale);
+            fabricCanvas.setViewportTransform(newVpt);
+            fabricCanvas.renderAll();
+            saveState();
+        }
 
         toolButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
