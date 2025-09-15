@@ -85,15 +85,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error('Error fetching notes:', error);
             } else if (data && data.profile_text) {
                 try {
-                    const savedPages = JSON.parse(data.profile_text);
-                    if (Array.isArray(savedPages) && savedPages.length > 0) {
-                        pages = savedPages;
+                    const savedData = JSON.parse(data.profile_text);
+                    // Handle both old format (array of pages) and new format (object with pages and currentPageIndex)
+                    if (Array.isArray(savedData)) {
+                        // Old format - only pages array
+                        pages = savedData;
+                        loadPage(0); // Default to first page for old data
+                    } else if (savedData && typeof savedData === 'object') {
+                        // New format - object with pages and currentPageIndex
+                        if (Array.isArray(savedData.pages)) {
+                            pages = savedData.pages;
+                        }
+                        const savedCurrentPageIndex = savedData.currentPageIndex || 0;
+                        // Validate that the saved index is within bounds
+                        if (savedCurrentPageIndex >= pages.length) {
+                            loadPage(Math.max(0, pages.length - 1));
+                        } else {
+                            loadPage(savedCurrentPageIndex);
+                        }
                     }
                 } catch (e) {
                     console.error('Error parsing saved notes JSON:', e);
                 }
+            } else {
+                loadPage(0);
             }
-            loadPage(0);
             dataLoaded = true;
         };
 
@@ -102,7 +118,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             saveCurrentPage();
-            const notesJson = JSON.stringify(pages);
+            // Save both pages and current page index in a single object
+            const saveData = {
+                pages: pages,
+                currentPageIndex: currentPageIndex
+            };
+            const notesJson = JSON.stringify(saveData);
             const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
             if (error) {
                 console.error('Error saving to Supabase:', error);
