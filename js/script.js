@@ -68,6 +68,33 @@ document.addEventListener('DOMContentLoaded', () => {
         const initialColor = colorPickers[0].value;
         fabricCanvas.freeDrawingBrush.width = initialLineWidth;
         fabricCanvas.freeDrawingBrush.color = initialColor;
+
+        // --- Marker Color Logic ---
+        const hexToRgb = (hex) => {
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? { r: parseInt(result[1], 16), g: parseInt(result[2], 16), b: parseInt(result[3], 16) } : null;
+        };
+
+        const invertColor = (rgb) => ({ r: 255 - rgb.r, g: 255 - rgb.g, b: 255 - rgb.b });
+
+        const rgbToRgba = (rgb, alpha) => `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+
+        const updateBrushSettings = () => {
+            const pencilWidth = parseInt(lineWidthSliders[0].value, 10);
+            const pencilColor = colorPickers[0].value;
+
+            if (currentTool === 'draw') {
+                fabricCanvas.freeDrawingBrush.width = pencilWidth;
+                fabricCanvas.freeDrawingBrush.color = pencilColor;
+            } else if (currentTool === 'marker') {
+                const rgbColor = hexToRgb(pencilColor);
+                if (rgbColor) {
+                    const invertedRgb = invertColor(rgbColor);
+                    fabricCanvas.freeDrawingBrush.color = rgbToRgba(invertedRgb, 0.3); // 30% opacity
+                    fabricCanvas.freeDrawingBrush.width = pencilWidth * 3;
+                }
+            }
+        };
         
         // --- Auth Functions ---
         const showError = (message) => { authError.textContent = message; authError.classList.remove('d-none'); };
@@ -401,12 +428,15 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const setActiveTool = (tool) => {
             currentTool = tool;
-            fabricCanvas.isDrawingMode = tool === 'draw';
+            fabricCanvas.isDrawingMode = tool === 'draw' || tool === 'marker';
+            updateBrushSettings(); // Update brush for the new tool
+
             toolButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tool === tool);
             });
+
             // Toggle mobile draw options
-            if (tool === 'draw') {
+            if (tool === 'draw' || tool === 'marker') {
                 mobileDrawOptions.classList.add('active');
                 document.body.classList.add('draw-tool-active');
             } else {
@@ -476,14 +506,16 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; fabricCanvas.freeDrawingBrush.color = newColor; colorPickers.forEach(p => p.value = newColor); }); });
+        colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; colorPickers.forEach(p => p.value = newColor); updateBrushSettings(); }); });
         
         const updateLineWidth = (newWidth) => {
             const clampedWidth = Math.max(1, Math.min(50, newWidth));
-            fabricCanvas.freeDrawingBrush.width = clampedWidth;
+            // This function now only updates the UI state.
+            // The actual brush width is set in updateBrushSettings.
             lineWidthSliders.forEach(s => s.value = clampedWidth);
             lineWidthValues.desktop.textContent = clampedWidth;
             lineWidthValues.mobile.textContent = clampedWidth;
+            updateBrushSettings(); // Update brush settings when width changes
         };
 
         lineWidthSliders.forEach(slider => { slider.addEventListener('input', (e) => updateLineWidth(parseInt(e.target.value, 10))); });
