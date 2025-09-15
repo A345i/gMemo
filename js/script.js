@@ -347,6 +347,26 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEl.addEventListener('touchstart', (e) => {
             isTouching = true;
             if (e.touches.length === 1) {
+                // Eyedropper logic for touch
+                if (currentTool === 'eyedropper') {
+                    e.preventDefault(); // Prevent drawing/panning
+                    const touch = e.touches[0];
+                    const canvasRect = canvasEl.getBoundingClientRect();
+                    const x = Math.round(touch.clientX - canvasRect.left);
+                    const y = Math.round(touch.clientY - canvasRect.top);
+
+                    const ctx = canvasEl.getContext('2d');
+                    const pixel = ctx.getImageData(x, y, 1, 1).data;
+
+                    const toHex = (c) => ('0' + c.toString(16)).slice(-2);
+                    const hexColor = `#${toHex(pixel[0])}${toHex(pixel[1])}${toHex(pixel[2])}`;
+
+                    colorPickers.forEach(p => p.value = hexColor);
+                    updateBrushSettings();
+                    setActiveTool('draw');
+                    isTouching = false; // Reset touch state
+                    return;
+                }
                 touchStartTime = Date.now();
                 lastTouchTarget = fabricCanvas.findTarget(e, false);
             }
