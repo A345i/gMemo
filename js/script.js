@@ -272,22 +272,27 @@ document.addEventListener('DOMContentLoaded', () => {
         fabricCanvas.on('mouse:down', function(opt) {
             // Eyedropper logic
             if (currentTool === 'eyedropper') {
-                const pointer = fabricCanvas.getPointer(opt.e);
-                const x = Math.round(pointer.x);
-                const y = Math.round(pointer.y);
-                const ctx = fabricCanvas.getContext();
+                // Use coordinates relative to the viewport and canvas element for accuracy
+                const canvasEl = fabricCanvas.getElement();
+                const canvasRect = canvasEl.getBoundingClientRect();
+                const x = Math.round(opt.e.clientX - canvasRect.left);
+                const y = Math.round(opt.e.clientY - canvasRect.top);
+
+                // Get context and pixel data from the correct coordinates
+                const ctx = canvasEl.getContext('2d');
                 const pixel = ctx.getImageData(x, y, 1, 1).data;
-                
+
                 // Function to convert component to hex
                 const toHex = (c) => ('0' + c.toString(16)).slice(-2);
-                
+
                 // Construct hex color string
                 const hexColor = `#${toHex(pixel[0])}${toHex(pixel[1])}${toHex(pixel[2])}`;
 
-                // Update UI
+                // Update UI with the new color
                 colorPickers.forEach(p => p.value = hexColor);
-                
-                // Switch back to pencil tool
+                updateBrushSettings(); // Update the brush color immediately
+
+                // Switch back to the drawing tool
                 setActiveTool('draw');
                 return; // Stop further processing
             }
