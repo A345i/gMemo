@@ -275,14 +275,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Get the correct event object for coordinates (mouse vs. touch)
                 const pointerEvent = opt.e.touches ? opt.e.touches[0] : opt.e;
 
-                const canvasEl = fabricCanvas.getElement();
+                // Use the lower canvas element where the actual drawing resides
+                const canvasEl = fabricCanvas.lowerCanvasEl;
                 const canvasRect = canvasEl.getBoundingClientRect();
+                
+                // Calculate coordinates relative to the canvas element's CSS dimensions
                 const x = Math.round(pointerEvent.clientX - canvasRect.left);
                 const y = Math.round(pointerEvent.clientY - canvasRect.top);
 
+                // Account for retina scaling to get coordinates on the backing store
+                const scale = window.devicePixelRatio || 1;
+                const scaledX = x * scale;
+                const scaledY = y * scale;
+
                 // Get context and pixel data from the correct coordinates
                 const ctx = canvasEl.getContext('2d');
-                const pixel = ctx.getImageData(x, y, 1, 1).data;
+                const pixel = ctx.getImageData(scaledX, scaledY, 1, 1).data;
 
                 // Function to convert component to hex
                 const toHex = (c) => ('0' + c.toString(16)).slice(-2);
@@ -471,13 +479,17 @@ document.addEventListener('DOMContentLoaded', () => {
             // Drawing mode is only for pencil and marker
             fabricCanvas.isDrawingMode = tool === 'draw' || tool === 'marker';
 
-            // Set cursor style
+            // Configure canvas based on tool
             if (tool === 'eyedropper') {
                 fabricCanvas.defaultCursor = 'crosshair';
                 fabricCanvas.hoverCursor = 'crosshair';
+                fabricCanvas.selection = false; // Disable group selection
+                fabricCanvas.forEachObject(o => o.set('evented', false)); // Make objects non-interactive
             } else {
                 fabricCanvas.defaultCursor = 'default';
                 fabricCanvas.hoverCursor = 'default';
+                fabricCanvas.selection = true; // Enable group selection
+                fabricCanvas.forEachObject(o => o.set('evented', true)); // Make objects interactive again
             }
             fabricCanvas.renderAll();
 
