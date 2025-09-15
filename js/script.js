@@ -68,6 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const initialColor = colorPickers[0].value;
         fabricCanvas.freeDrawingBrush.width = initialLineWidth;
         fabricCanvas.freeDrawingBrush.color = initialColor;
+        fabricCanvas.freeDrawingBrush.width = initialLineWidth;
+        fabricCanvas.freeDrawingBrush.color = initialColor;
 
         // --- Marker Color Logic ---
         const hexToRgb = (hex) => {
@@ -82,17 +84,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateBrushSettings = () => {
             const pencilWidth = parseInt(lineWidthSliders[0].value, 10);
             const pencilColor = colorPickers[0].value;
+            const brush = fabricCanvas.freeDrawingBrush;
 
-            if (currentTool === 'draw') {
-                fabricCanvas.freeDrawingBrush.width = pencilWidth;
-                fabricCanvas.freeDrawingBrush.color = pencilColor;
-            } else if (currentTool === 'marker') {
-                const rgbColor = hexToRgb(pencilColor);
-                if (rgbColor) {
-                    const invertedRgb = invertColor(rgbColor);
-                    fabricCanvas.freeDrawingBrush.color = rgbToRgba(invertedRgb, 0.3); // 30% opacity
-                    fabricCanvas.freeDrawingBrush.width = pencilWidth * 3;
-                }
+            // --- Final, Simplified Logic ---
+            // Always use the standard drawing mode.
+            brush.globalCompositeOperation = 'source-over';
+
+            switch (currentTool) {
+                case 'draw':
+                    brush.width = pencilWidth;
+                    brush.color = pencilColor;
+                    break;
+
+                case 'marker':
+                    const rgbColor = hexToRgb(pencilColor);
+                    if (rgbColor) {
+                        const invertedRgb = invertColor(rgbColor);
+                        brush.color = rgbToRgba(invertedRgb, 0.3);
+                    }
+                    brush.width = pencilWidth * 3;
+                    break;
             }
         };
         
@@ -259,6 +270,28 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         fabricCanvas.on('mouse:down', function(opt) {
+            // Eyedropper logic
+            if (currentTool === 'eyedropper') {
+                const pointer = fabricCanvas.getPointer(opt.e);
+                const x = Math.round(pointer.x);
+                const y = Math.round(pointer.y);
+                const ctx = fabricCanvas.getContext();
+                const pixel = ctx.getImageData(x, y, 1, 1).data;
+                
+                // Function to convert component to hex
+                const toHex = (c) => ('0' + c.toString(16)).slice(-2);
+                
+                // Construct hex color string
+                const hexColor = `#${toHex(pixel[0])}${toHex(pixel[1])}${toHex(pixel[2])}`;
+
+                // Update UI
+                colorPickers.forEach(p => p.value = hexColor);
+                
+                // Switch back to pencil tool
+                setActiveTool('draw');
+                return; // Stop further processing
+            }
+
             if (opt.e.altKey) {
                 isPanning = true;
                 fabricCanvas.selection = false;
@@ -428,8 +461,21 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const setActiveTool = (tool) => {
             currentTool = tool;
+            // Drawing mode is only for pencil and marker
             fabricCanvas.isDrawingMode = tool === 'draw' || tool === 'marker';
-            updateBrushSettings(); // Update brush for the new tool
+
+            // Set cursor style
+            if (tool === 'eyedropper') {
+                fabricCanvas.defaultCursor = 'crosshair';
+                fabricCanvas.hoverCursor = 'crosshair';
+            } else {
+                fabricCanvas.defaultCursor = 'default';
+                fabricCanvas.hoverCursor = 'default';
+            }
+            fabricCanvas.renderAll();
+
+
+            updateBrushSettings(); // Centralized brush configuration
 
             toolButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tool === tool);
