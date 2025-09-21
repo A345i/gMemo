@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const appContainer = document.getElementById('app-container');
         const userEmailDisplay = document.getElementById('user-email-display');
         const logoutButton = document.getElementById('logout-button');
+        const saveIndicator = document.getElementById('save-indicator');
         const canvasContainer = document.getElementById('canvas-container');
         const canvasElement = document.getElementById('canvas');
         const toolButtons = document.querySelectorAll('[data-tool]');
@@ -175,6 +176,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
             if (error) {
                 console.error('Error saving to Supabase:', error);
+            } else {
+                saveIndicator.classList.remove('unsaved');
+                saveIndicator.classList.add('saved');
+                setTimeout(() => {
+                    saveIndicator.classList.remove('saved');
+                }, 1500);
             }
         };
         
@@ -182,6 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- NEW, ROBUST AUTH HANDLING ---
         const setupAuthenticatedApp = async (session) => {
+            if (currentUser && dataLoaded) { return; } // Prevent re-initialization on token refresh
             currentUser = session.user;
             await loadNotesFromSupabase();
             userEmailDisplay.textContent = currentUser.email;
@@ -217,7 +225,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Canvas & App Logic ---
         const saveState = () => { 
-            if (historyLock) return; 
+            if (historyLock) return;
+            saveIndicator.classList.remove('saved');
+            saveIndicator.classList.add('unsaved');
             redoStack = []; 
             const state = fabricCanvas.toJSON(['isLink', 'url']);
             state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
