@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobileDrawOptions = document.getElementById('mobile-draw-options');
         const widthIncreaseBtn = document.getElementById('width-increase-mobile');
         const widthDecreaseBtn = document.getElementById('width-decrease-mobile');
+        const mobileShapesToggle = document.getElementById('mobile-shapes-toggle');
+        const mobileShapesOptions = document.getElementById('mobile-shapes-options');
 
 
         // --- App State ---
@@ -69,6 +71,27 @@ document.addEventListener('DOMContentLoaded', () => {
         let isDrawingShape = false;
         let shapeInProgress = null;
         let startX, startY;
+
+        // --- Mobile Toolbar Logic ---
+        mobileShapesToggle.addEventListener('click', () => {
+            const willBeActive = !mobileShapesOptions.classList.contains('active');
+
+            // Hide draw options if we are opening shapes
+            if (willBeActive && mobileDrawOptions.classList.contains('active')) {
+                mobileDrawOptions.classList.remove('active');
+                document.body.classList.remove('draw-tool-active');
+            }
+
+            mobileShapesOptions.classList.toggle('active', willBeActive);
+            document.body.classList.toggle('shapes-options-active', willBeActive);
+
+            // If we are closing the panel and a shape tool is active, deactivate the tool
+            if (!willBeActive && ['line', 'arrow', 'rect', 'circle'].includes(currentTool)) {
+                setActiveTool(null);
+            }
+
+            setTimeout(resizeCanvas, 210);
+        });
 
         // --- UI State Functions ---
         const showLoader = () => loadingOverlay.classList.remove('d-none');
@@ -597,8 +620,11 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const setActiveTool = (tool) => {
             currentTool = tool;
+            const isDrawTool = tool === 'draw' || tool === 'marker';
+            const isShapeTool = ['line', 'arrow', 'rect', 'circle'].includes(tool);
+
             // Drawing mode is only for pencil and marker
-            fabricCanvas.isDrawingMode = tool === 'draw' || tool === 'marker';
+            fabricCanvas.isDrawingMode = isDrawTool;
 
             // Configure canvas based on tool
             fabricCanvas.selection = (tool === 'select'); // Group selection only for 'select' tool
@@ -607,7 +633,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.forEachObject(o => o.set('evented', o.isLink || false)); // Only links are interactive
             } else if (tool === 'select') {
                 fabricCanvas.forEachObject(o => o.set('evented', true)); // All objects are interactive
-            } else { // draw, marker, eyedropper
+            } else { // draw, marker, eyedropper, shapes
                 fabricCanvas.forEachObject(o => o.set('evented', false)); // No objects are interactive
             }
 
@@ -627,15 +653,26 @@ document.addEventListener('DOMContentLoaded', () => {
             toolButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tool === tool);
             });
+            if (mobileShapesToggle) {
+                mobileShapesToggle.classList.toggle('active', isShapeTool);
+            }
 
-            // Toggle mobile draw options
-            if (tool === 'draw' || tool === 'marker') {
+            // Manage mobile panels
+            // Draw options panel
+            if (isDrawTool) {
                 mobileDrawOptions.classList.add('active');
                 document.body.classList.add('draw-tool-active');
             } else {
                 mobileDrawOptions.classList.remove('active');
                 document.body.classList.remove('draw-tool-active');
             }
+
+            // Shapes options panel - hide if a draw tool is selected, or if a non-shape tool is selected
+            if (isDrawTool || !isShapeTool) {
+                mobileShapesOptions.classList.remove('active');
+                document.body.classList.remove('shapes-options-active');
+            }
+            
             // Use a timeout to ensure the DOM has updated before resizing
             setTimeout(resizeCanvas, 210); // 210ms is slightly longer than the CSS transition
         };
