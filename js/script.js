@@ -57,6 +57,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const widthDecreaseBtn = document.getElementById('width-decrease-mobile');
         const mobileShapesToggle = document.getElementById('mobile-shapes-toggle');
         const mobileShapesOptions = document.getElementById('mobile-shapes-options');
+        const mobileActionsToggle = document.getElementById('mobile-actions-toggle');
+        const mobileActionsOptions = document.getElementById('mobile-actions-options');
 
 
         // --- App State ---
@@ -89,6 +91,28 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!willBeActive && ['line', 'arrow', 'rect', 'circle'].includes(currentTool)) {
                 setActiveTool(null);
             }
+
+            setTimeout(resizeCanvas, 210);
+        });
+
+        mobileActionsToggle.addEventListener('click', () => {
+            const willBeActive = !mobileActionsOptions.classList.contains('active');
+
+            // Hide other panels if we are opening actions
+            if (willBeActive) {
+                if (mobileDrawOptions.classList.contains('active')) {
+                    mobileDrawOptions.classList.remove('active');
+                    document.body.classList.remove('draw-tool-active');
+                }
+                if (mobileShapesOptions.classList.contains('active')) {
+                    mobileShapesOptions.classList.remove('active');
+                    document.body.classList.remove('shapes-options-active');
+                }
+            }
+
+            mobileActionsOptions.classList.toggle('active', willBeActive);
+            document.body.classList.toggle('actions-options-active', willBeActive);
+            mobileActionsToggle.classList.toggle('active', willBeActive);
 
             setTimeout(resizeCanvas, 210);
         });
