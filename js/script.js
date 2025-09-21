@@ -60,6 +60,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobileActionsToggle = document.getElementById('mobile-actions-toggle');
         const mobileActionsOptions = document.getElementById('mobile-actions-options');
 
+        // --- Voice Input Elements ---
+        const voiceModalElement = document.getElementById('voice-modal');
+        const voiceModal = new bootstrap.Modal(voiceModalElement);
+        const voiceTextResult = document.getElementById('voice-text-result');
+        const voiceSaveButton = document.getElementById('voice-save-button');
+
 
         // --- App State ---
         let pages = [null];
@@ -73,6 +79,90 @@ document.addEventListener('DOMContentLoaded', () => {
         let isDrawingShape = false;
         let shapeInProgress = null;
         let startX, startY;
+        let voiceInputPosition = null; // Для хранения координат клика для голосового ввода
+
+        // --- Voice Recognition Setup ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        let isRecording = false;
+        let textBeforeCurrentSession = "";
+
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'ru-RU';
+
+            recognition.onresult = (event) => {
+                let interim_transcript = '';
+                let final_transcript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        final_transcript += event.results[i][0].transcript;
+                    } else {
+                        interim_transcript += event.results[i][0].transcript;
+                    }
+                }
+                
+                const separator = textBeforeCurrentSession.trim().length > 0 ? '\n' : '';
+                voiceTextResult.value = textBeforeCurrentSession + separator + final_transcript + interim_transcript;
+            };
+
+            recognition.onerror = (event) => {
+                console.error("Speech recognition error:", event.error);
+                if (event.error === 'not-allowed') {
+                    alert("Доступ к микрофону заблокирован. Пожалуйста, разрешите доступ в настройках вашего браузера.");
+                } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
+                    alert(`Ошибка распознавания: ${event.error}`);
+                }
+                isRecording = false; // Сбрасываем флаг в случае ошибки
+            };
+            
+            recognition.onend = () => {
+                // Автоматический перезапуск убран, чтобы избежать лишних запросов
+                // и дать пользователю контроль. Распознавание остановится, когда модальное окно закроется.
+                isRecording = false;
+            };
+
+        } else {
+            console.warn("Speech Recognition API not supported in this browser.");
+        }
+
+        // --- Voice Modal Logic ---
+        if (SpeechRecognition) {
+            // Останавливаем распознавание при закрытии модального окна
+            voiceModalElement.addEventListener('hidden.bs.modal', () => {
+                if (recognition && isRecording) {
+                    recognition.stop();
+                    // isRecording будет установлено в false в событии onend
+                }
+                // Возвращаемся к инструменту "выбор" после закрытия окна
+                setActiveTool('select');
+            });
+
+            voiceSaveButton.addEventListener('click', () => {
+                const text = voiceTextResult.value.trim();
+                if (text && voiceInputPosition) {
+                    const textObject = new fabric.IText(text, {
+                        left: voiceInputPosition.x,
+                        top: voiceInputPosition.y,
+                        fill: colorPickers[0].value,
+                        fontSize: 24,
+                        fontFamily: 'Arial',
+                        originX: 'center',
+                        originY: 'center'
+                    });
+                    fabricCanvas.add(textObject);
+                    fabricCanvas.setActiveObject(textObject);
+                    fabricCanvas.renderAll();
+                    saveState();
+                }
+                voiceModal.hide();
+                voiceInputPosition = null; // Сбрасываем позицию
+            });
+        }
+
 
         // --- Mobile Toolbar Logic ---
         mobileShapesToggle.addEventListener('click', () => {
@@ -116,11 +206,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             setTimeout(resizeCanvas, 210);
         });
-
+        
         // --- UI State Functions ---
         const showLoader = () => loadingOverlay.classList.remove('d-none');
         const hideLoader = () => loadingOverlay.classList.add('d-none');
-
+        
         // --- Fabric.js Canvas Initialization ---
         const fabricCanvas = new fabric.Canvas(canvasElement, { isDrawingMode: false, backgroundColor: '#fff' });
         
@@ -174,7 +264,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loginForm.addEventListener('submit', async (e) => { e.preventDefault(); hideError(); showLoader(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) { showError(error.message); hideLoader(); } });
         registerForm.addEventListener('submit', async (e) => { e.preventDefault(); hideError(); showLoader(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const username = document.getElementById('register-username').value; const { error } = await supabaseClient.auth.signUp({ email, password, options: { data: { username: username } } }); hideLoader(); if (error) { showError(error.message); } else { alert('Регистрация успешна! Пожалуйста, подтвердите свой email.'); new bootstrap.Tab(document.getElementById('pills-login-tab')).show(); } });
-        logoutButton.addEventListener('click', async () => { showLoader(); await saveNotesToSupabase(); await supabaseClient.auth.signOut(); });
+        logoutButton.addEventListener('click', async () => { 
+            showLoader(); 
+            await saveNotesToSupabase(); 
+            await supabaseClient.auth.signOut(); 
+        });
 
         // --- Supabase Data Functions ---
         const loadNotesFromSupabase = async () => {
@@ -391,6 +485,32 @@ document.addEventListener('DOMContentLoaded', () => {
                 text.enterEditing();
                 text.selectAll();
                 setActiveTool('select');
+            } else if (!isTouching && currentTool === 'voice' && !opt.target) {
+                if (!SpeechRecognition) {
+                    alert("Ваш браузер не поддерживает голосовой ввод.");
+                    setActiveTool('select');
+                    return;
+                }
+                const pointer = fabricCanvas.getPointer(opt.e);
+                voiceInputPosition = { x: pointer.x, y: pointer.y };
+                
+                // Сохраняем текущий текст и показываем окно
+                textBeforeCurrentSession = voiceTextResult.value;
+                voiceModal.show();
+
+                // Запускаем распознавание речи сразу после клика
+                if (recognition && !isRecording) {
+                    try {
+                        recognition.start();
+                        isRecording = true;
+                    } catch (e) {
+                        console.error("Could not start recording:", e);
+                        isRecording = false;
+                        alert("Не удалось начать запись. Проверьте разрешения для микрофона.");
+                        voiceModal.hide();
+                        setActiveTool('select');
+                    }
+                }
             } else if (['line', 'arrow', 'rect', 'circle'].includes(currentTool) && !opt.target) {
                 isDrawingShape = true;
                 const pointer = fabricCanvas.getPointer(opt.e);
