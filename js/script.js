@@ -66,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let historyLock = false;
         let currentUser = null;
         let dataLoaded = false;
+        let isDrawingShape = false;
+        let shapeInProgress = null;
+        let startX, startY;
 
         // --- UI State Functions ---
         const showLoader = () => loadingOverlay.classList.remove('d-none');
@@ -341,6 +344,31 @@ document.addEventListener('DOMContentLoaded', () => {
                 text.enterEditing();
                 text.selectAll();
                 setActiveTool('select');
+            } else if (['line', 'arrow', 'rect', 'circle'].includes(currentTool) && !opt.target) {
+                isDrawingShape = true;
+                const pointer = fabricCanvas.getPointer(opt.e);
+                startX = pointer.x;
+                startY = pointer.y;
+                const color = colorPickers[0].value;
+                const width = parseInt(lineWidthSliders[0].value, 10);
+
+                switch (currentTool) {
+                    case 'line':
+                        shapeInProgress = new fabric.Line([startX, startY, startX, startY], { stroke: color, strokeWidth: width });
+                        break;
+                    case 'arrow':
+                        shapeInProgress = createArrow(startX, startY, startX, startY, color, width);
+                        break;
+                    case 'rect':
+                        shapeInProgress = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: 'transparent', stroke: color, strokeWidth: width });
+                        break;
+                    case 'circle':
+                        shapeInProgress = new fabric.Ellipse({ left: startX, top: startY, rx: 0, ry: 0, fill: 'transparent', stroke: color, strokeWidth: width });
+                        break;
+                }
+                if (shapeInProgress) {
+                    fabricCanvas.add(shapeInProgress);
+                }
             }
         });
 
@@ -352,6 +380,40 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.requestRenderAll();
                 lastPosX = opt.e.clientX;
                 lastPosY = opt.e.clientY;
+            } else if (isDrawingShape && shapeInProgress) {
+                const pointer = fabricCanvas.getPointer(opt.e);
+                const endX = pointer.x;
+                const endY = pointer.y;
+
+                switch (currentTool) {
+                    case 'line':
+                        shapeInProgress.set({ x2: endX, y2: endY });
+                        break;
+                    case 'arrow':
+                        fabricCanvas.remove(shapeInProgress);
+                        shapeInProgress = createArrow(startX, startY, endX, endY, shapeInProgress.stroke, shapeInProgress.strokeWidth);
+                        fabricCanvas.add(shapeInProgress);
+                        break;
+                    case 'rect':
+                        shapeInProgress.set({
+                            width: Math.abs(endX - startX),
+                            height: Math.abs(endY - startY),
+                            left: endX < startX ? endX : startX,
+                            top: endY < startY ? endY : startY
+                        });
+                        break;
+                    case 'circle':
+                        shapeInProgress.set({
+                            rx: Math.abs(endX - startX) / 2,
+                            ry: Math.abs(endY - startY) / 2,
+                            left: endX < startX ? endX : startX,
+                            top: endY < startY ? endY : startY,
+                            originX: 'left',
+                            originY: 'top'
+                        });
+                        break;
+                }
+                fabricCanvas.renderAll();
             }
         });
 
@@ -361,10 +423,49 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
                 saveState(); // Save state after panning
+            } else if (isDrawingShape) {
+                isDrawingShape = false;
+                if (shapeInProgress) {
+                    shapeInProgress.setCoords(); // Finalize coordinates
+                    saveState();
+                }
+                shapeInProgress = null;
             } else if (!isTouching && currentTool === null && opt.target && opt.target.isLink && !opt.target.isEditing) {
                 window.open(opt.target.url, '_blank');
             }
         });
+
+        const createArrow = (fromX, fromY, toX, toY, color, width) => {
+            const angle = Math.atan2(toY - fromY, toX - fromX);
+            const headLength = width * 4;
+
+            const line = new fabric.Line([fromX, fromY, toX, toY], {
+                stroke: color,
+                strokeWidth: width,
+                selectable: false,
+                evented: false,
+            });
+
+            const arrowhead = new fabric.Triangle({
+                left: toX,
+                top: toY,
+                originX: 'center',
+                originY: 'center',
+                width: headLength,
+                height: headLength,
+                fill: color,
+                angle: angle * (180 / Math.PI) + 90,
+                selectable: false,
+                evented: false,
+            });
+
+            return new fabric.Group([line, arrowhead], {
+                left: fromX,
+                top: fromY,
+                stroke: color, // Store for redraw
+                strokeWidth: width, // Store for redraw
+            });
+        };
 
         const canvasEl = fabricCanvas.getElement().parentElement;
         const getTouchDistance = (touches) => {
