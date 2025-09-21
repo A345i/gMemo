@@ -361,7 +361,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
                 saveState(); // Save state after panning
-            } else if (!isTouching && opt.target && opt.target.isLink && !opt.target.isEditing) {
+            } else if (!isTouching && currentTool === null && opt.target && opt.target.isLink && !opt.target.isEditing) {
                 window.open(opt.target.url, '_blank');
             }
         });
@@ -416,7 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEl.addEventListener('touchend', (e) => {
             const touchDuration = Date.now() - touchStartTime;
             if (e.touches.length === 0 && e.changedTouches.length === 1 && !isPanning && touchDuration < 250) {
-                 if (lastTouchTarget && lastTouchTarget.isLink) { window.open(lastTouchTarget.url, '_blank'); }
+                 if (currentTool === null && lastTouchTarget && lastTouchTarget.isLink) { window.open(lastTouchTarget.url, '_blank'); }
             }
             if (isPanning && e.touches.length < 2) {
                 isPanning = false;
@@ -500,22 +500,29 @@ document.addEventListener('DOMContentLoaded', () => {
             fabricCanvas.isDrawingMode = tool === 'draw' || tool === 'marker';
 
             // Configure canvas based on tool
+            fabricCanvas.selection = (tool === 'select'); // Group selection only for 'select' tool
+
+            if (tool === null) { // Neutral state
+                fabricCanvas.forEachObject(o => o.set('evented', o.isLink || false)); // Only links are interactive
+            } else if (tool === 'select') {
+                fabricCanvas.forEachObject(o => o.set('evented', true)); // All objects are interactive
+            } else { // draw, marker, eyedropper
+                fabricCanvas.forEachObject(o => o.set('evented', false)); // No objects are interactive
+            }
+
             if (tool === 'eyedropper') {
                 fabricCanvas.defaultCursor = 'crosshair';
                 fabricCanvas.hoverCursor = 'crosshair';
-                fabricCanvas.selection = false; // Disable group selection
-                fabricCanvas.forEachObject(o => o.set('evented', false)); // Make objects non-interactive
             } else {
                 fabricCanvas.defaultCursor = 'default';
                 fabricCanvas.hoverCursor = 'default';
-                fabricCanvas.selection = true; // Enable group selection
-                fabricCanvas.forEachObject(o => o.set('evented', true)); // Make objects interactive again
             }
             fabricCanvas.renderAll();
 
 
             updateBrushSettings(); // Centralized brush configuration
 
+            // Update button states
             toolButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tool === tool);
             });
@@ -585,7 +592,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url });
                         fabricCanvas.add(linkText);
                     } else {
-                        setActiveTool(tool);
+                        // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
+                        if (tool === currentTool) {
+                            setActiveTool(null);
+                        } else {
+                            setActiveTool(tool);
+                        }
                     }
                 }
             });
