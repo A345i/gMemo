@@ -171,11 +171,8 @@
             <button data-tool="select" class="btn btn-light active" title="Выбрать"><i class="bi bi-arrows-move"></i></button>
             <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
             <button data-tool="marker" class="btn btn-light" title="Маркер"><i class="bi bi-highlighter"></i></button>
+            <button id="mobile-shapes-toggle" class="btn btn-light" title="Фигуры"><i class="bi bi-pentagon"></i></button>
             <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
-            <button data-tool="line" class="btn btn-light" title="Линия"><i class="bi bi-slash-lg"></i></button>
-            <button data-tool="arrow" class="btn btn-light" title="Стрелка"><i class="bi bi-arrow-right"></i></button>
-            <button data-tool="rect" class="btn btn-light" title="Прямоугольник"><i class="bi bi-square"></i></button>
-            <button data-tool="circle" class="btn btn-light" title="Круг"><i class="bi bi-circle"></i></button>
             <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
             <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
             <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
@@ -194,6 +191,14 @@
             </div>
             <span id="line-width-value-mobile" class="small fw-bold">5</span>
             <button id="width-increase-mobile" class="btn btn-light" title="Увеличить толщину"><i class="bi bi-plus-lg"></i></button>
+        </div>
+
+        <!-- Mobile Shapes Options (conditionally visible) -->
+        <div id="mobile-shapes-options" class="d-lg-none">
+            <button data-tool="line" class="btn btn-light" title="Линия"><i class="bi bi-slash-lg"></i></button>
+            <button data-tool="arrow" class="btn btn-light" title="Стрелка"><i class="bi bi-arrow-right"></i></button>
+            <button data-tool="rect" class="btn btn-light" title="Прямоугольник"><i class="bi bi-square"></i></button>
+            <button data-tool="circle" class="btn btn-light" title="Круг"><i class="bi bi-circle"></i></button>
         </div>
 
         <!-- Main Canvas Area -->
