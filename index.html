@@ -172,14 +172,10 @@
             <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
             <button data-tool="marker" class="btn btn-light" title="Маркер"><i class="bi bi-highlighter"></i></button>
             <button id="mobile-shapes-toggle" class="btn btn-light" title="Фигуры"><i class="bi bi-pentagon"></i></button>
-            <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
             <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
             <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
             <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
-            <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
-            <button id="mobile-undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
-            <button id="mobile-redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
-            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
+            <button id="mobile-actions-toggle" class="btn btn-light" title="Действия"><i class="bi bi-three-dots-vertical"></i></button>
         </div>
 
         <!-- Mobile Drawing Options (conditionally visible) -->
@@ -199,6 +195,15 @@
             <button data-tool="arrow" class="btn btn-light" title="Стрелка"><i class="bi bi-arrow-right"></i></button>
             <button data-tool="rect" class="btn btn-light" title="Прямоугольник"><i class="bi bi-square"></i></button>
             <button data-tool="circle" class="btn btn-light" title="Круг"><i class="bi bi-circle"></i></button>
+        </div>
+
+        <!-- Mobile Actions Options (conditionally visible) -->
+        <div id="mobile-actions-options" class="d-lg-none">
+            <button id="mobile-undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
+            <button id="mobile-redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
+            <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
+            <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
+            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
         </div>
 
         <!-- Main Canvas Area -->
