@@ -125,6 +125,9 @@
                             <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
                         </li>
                         <li class="nav-item">
+                            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
+                        </li>
+                        <li class="nav-item">
                             <button data-tool="delete" class="btn btn-light text-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
                         </li>
                         <li class="nav-item ms-3">
@@ -203,6 +206,7 @@
             <button id="mobile-redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
             <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
             <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
+            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
             <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
         </div>
 
@@ -210,6 +214,28 @@
         <main id="canvas-container">
             <canvas id="canvas"></canvas>
         </main>
+    </div>
+
+    <!-- Voice Input Modal -->
+    <div class="modal fade" id="voice-modal" tabindex="-1" aria-labelledby="voiceModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="voiceModalLabel">Голосовой ввод</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="text-muted">Говорите, текст будет распознаваться автоматически</p>
+                    <div class="form-group mt-4">
+                        <textarea id="voice-text-result" class="form-control" rows="4" placeholder="Распознанный текст..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
+                    <button type="button" class="btn btn-primary" id="voice-save-button">OK</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Supabase Client -->
