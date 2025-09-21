@@ -225,8 +225,11 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <p class="text-muted">Говорите, текст будет распознаваться автоматически</p>
-                    <div class="form-group mt-4">
+                    <p class="text-muted">Нажмите и удерживайте микрофон для записи</p>
+                    <button type="button" class="btn btn-primary btn-lg rounded-circle my-3" id="voice-record-button" style="width: 80px; height: 80px;">
+                        <i class="bi bi-mic-fill fs-2"></i>
+                    </button>
+                    <div class="form-group mt-2">
                         <textarea id="voice-text-result" class="form-control" rows="4" placeholder="Распознанный текст..."></textarea>
                     </div>
                 </div>
