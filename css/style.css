@@ -72,7 +72,7 @@ body {
 
 
 /* Mobile Toolbar (Bottom) */
-#mobile-toolbar, #mobile-draw-options {
+#mobile-toolbar, #mobile-draw-options, #mobile-shapes-options {
     position: fixed;
     bottom: 0;
     left: 0;
@@ -92,7 +92,7 @@ body {
     height: 60px; /* Fixed height */
 }
 
-#mobile-draw-options {
+#mobile-draw-options, #mobile-shapes-options {
     height: 50px;
     bottom: 60px; /* Position it above the main mobile toolbar */
     border-top: 1px solid #eee;
@@ -101,12 +101,16 @@ body {
     display: none; /* Hidden by default */
 }
 
-#mobile-draw-options.active {
-    display: flex; /* Show when draw tool is active */
+#mobile-shapes-options {
+    justify-content: space-around;
+}
+
+#mobile-draw-options.active, #mobile-shapes-options.active {
+    display: flex; /* Show when active */
 }
 
 
-#mobile-toolbar .btn, #mobile-draw-options .btn {
+#mobile-toolbar .btn, #mobile-draw-options .btn, #mobile-shapes-options .btn {
     /* Allow buttons to shrink but not grow, based on their content size */
     flex: 0 1 auto;
     font-size: 1.2rem;
@@ -138,7 +142,8 @@ body {
         transition: height 0.2s ease-in-out;
     }
 
-    body.draw-tool-active #canvas-container {
+    body.draw-tool-active #canvas-container,
+    body.shapes-options-active #canvas-container {
          /* Adjust height when the drawing options are visible */
         height: calc(100vh - 56px - 60px - 50px);
     }
@@ -151,13 +156,14 @@ body {
     #mobile-toolbar {
         height: 50px;
     }
-    #mobile-draw-options {
+    #mobile-draw-options, #mobile-shapes-options {
         bottom: 50px;
     }
      #canvas-container {
         height: calc(100vh - 56px - 50px);
     }
-    body.draw-tool-active #canvas-container {
+    body.draw-tool-active #canvas-container,
+    body.shapes-options-active #canvas-container {
         height: calc(100vh - 56px - 50px - 50px);
     }
 }
