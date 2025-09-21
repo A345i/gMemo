@@ -65,6 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceModal = new bootstrap.Modal(voiceModalElement);
         const voiceTextResult = document.getElementById('voice-text-result');
         const voiceSaveButton = document.getElementById('voice-save-button');
+        const voiceRecordButton = document.getElementById('voice-record-button');
 
 
         // --- App State ---
@@ -116,13 +117,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (event.error !== 'aborted' && event.error !== 'no-speech') {
                     alert(`Ошибка распознавания: ${event.error}`);
                 }
-                isRecording = false; // Сбрасываем флаг в случае ошибки
+                isRecording = false; 
+                voiceRecordButton.classList.remove('recording');
             };
             
             recognition.onend = () => {
-                // Автоматический перезапуск убран, чтобы избежать лишних запросов
-                // и дать пользователю контроль. Распознавание остановится, когда модальное окно закроется.
                 isRecording = false;
+                voiceRecordButton.classList.remove('recording');
             };
 
         } else {
@@ -131,13 +132,42 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Voice Modal Logic ---
         if (SpeechRecognition) {
-            // Останавливаем распознавание при закрытии модального окна
-            voiceModalElement.addEventListener('hidden.bs.modal', () => {
-                if (recognition && isRecording) {
-                    recognition.stop();
-                    // isRecording будет установлено в false в событии onend
+            const startRecording = (e) => {
+                e.preventDefault();
+                if (!recognition || isRecording) return;
+                
+                textBeforeCurrentSession = voiceTextResult.value;
+                try {
+                    recognition.start();
+                    isRecording = true;
+                    voiceRecordButton.classList.add('recording');
+                } catch (err) {
+                    console.error("Error starting recognition:", err);
                 }
-                // Возвращаемся к инструменту "выбор" после закрытия окна
+            };
+
+            const stopRecording = (e) => {
+                e.preventDefault();
+                if (!recognition || !isRecording) return;
+                
+                recognition.stop();
+                // isRecording и класс будут сброшены в onend
+            };
+
+            // Mouse events
+            voiceRecordButton.addEventListener('mousedown', startRecording);
+            voiceRecordButton.addEventListener('mouseup', stopRecording);
+            voiceRecordButton.addEventListener('mouseleave', stopRecording); // Stop if mouse leaves button while pressed
+
+            // Touch events
+            voiceRecordButton.addEventListener('touchstart', startRecording, { passive: false });
+            voiceRecordButton.addEventListener('touchend', stopRecording);
+
+
+            voiceModalElement.addEventListener('hidden.bs.modal', () => {
+                if (isRecording) {
+                    recognition.stop();
+                }
                 setActiveTool('select');
             });
 
@@ -159,7 +189,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     saveState();
                 }
                 voiceModal.hide();
-                voiceInputPosition = null; // Сбрасываем позицию
+                voiceInputPosition = null;
             });
         }
 
@@ -300,7 +330,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     console.error('Error parsing saved notes JSON:', e);
                 }
-            } else {
+            }
+            else {
                 loadPage(0);
             }
             dataLoaded = true;
@@ -494,23 +525,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 const pointer = fabricCanvas.getPointer(opt.e);
                 voiceInputPosition = { x: pointer.x, y: pointer.y };
                 
-                // Сохраняем текущий текст и показываем окно
-                textBeforeCurrentSession = voiceTextResult.value;
+                // Очищаем поле и показываем окно
+                voiceTextResult.value = '';
+                textBeforeCurrentSession = '';
                 voiceModal.show();
-
-                // Запускаем распознавание речи сразу после клика
-                if (recognition && !isRecording) {
-                    try {
-                        recognition.start();
-                        isRecording = true;
-                    } catch (e) {
-                        console.error("Could not start recording:", e);
-                        isRecording = false;
-                        alert("Не удалось начать запись. Проверьте разрешения для микрофона.");
-                        voiceModal.hide();
-                        setActiveTool('select');
-                    }
-                }
+                
             } else if (['line', 'arrow', 'rect', 'circle'].includes(currentTool) && !opt.target) {
                 isDrawingShape = true;
                 const pointer = fabricCanvas.getPointer(opt.e);
