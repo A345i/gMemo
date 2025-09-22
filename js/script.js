@@ -70,6 +70,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         // --- App State ---
+        let realtimeChannel = null;
+        const clientId = `client-${Math.random().toString(36).substring(2, 9)}`;
         let pages = [null];
         let currentPageIndex = 0;
         let currentTool = null;
@@ -301,6 +303,13 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutButton.addEventListener('click', async () => { 
             showLoader(); 
             await saveNotesToSupabase(); 
+            
+            // --- Unsubscribe from Realtime Channel ---
+            if (realtimeChannel) {
+                realtimeChannel.unsubscribe();
+                realtimeChannel = null;
+            }
+
             await supabaseClient.auth.signOut(); 
         });
 
@@ -358,6 +367,16 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 saveIndicator.classList.remove('unsaved');
                 saveIndicator.classList.add('saved');
+                
+                // --- Send Realtime Update ---
+                if (realtimeChannel) {
+                    realtimeChannel.send({
+                        type: 'broadcast',
+                        event: 'update',
+                        payload: { sender: clientId }
+                    });
+                }
+
                 setTimeout(() => {
                     saveIndicator.classList.remove('saved');
                 }, 1500);
@@ -376,6 +395,27 @@ document.addEventListener('DOMContentLoaded', () => {
             appContainer.classList.remove('d-none');
             resizeCanvas();
             setActiveTool(null); // Ensure no tool is active on load
+
+            // --- Realtime Channel Setup ---
+            if (realtimeChannel) {
+                realtimeChannel.unsubscribe();
+            }
+            const channelName = `notes-sync-${currentUser.id}`;
+            realtimeChannel = supabaseClient.channel(channelName);
+            realtimeChannel
+                .on('broadcast', { event: 'update' }, (payload) => {
+                    // Avoid reloading if the update was sent from this client
+                    if (payload.payload.sender !== clientId) {
+                        console.log('Realtime update received from another client. Reloading notes.');
+                        loadNotesFromSupabase();
+                    }
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log(`Successfully subscribed to realtime channel: ${channelName}`);
+                    }
+                });
+
             hideLoader();
         };
 
