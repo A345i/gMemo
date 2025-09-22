@@ -71,7 +71,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- App State ---
         let pages = [null];
         let currentPageIndex = 0;
-        let currentTool = 'select';
+        let currentTool = null;
         let history = [];
         let redoStack = [];
         let historyLock = false;
@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const hideLoader = () => loadingOverlay.classList.add('d-none');
         
         // --- Fabric.js Canvas Initialization ---
-        const fabricCanvas = new fabric.Canvas(canvasElement, { isDrawingMode: false, backgroundColor: '#fff' });
+        const fabricCanvas = new fabric.Canvas(canvasElement, { isDrawingMode: false, backgroundColor: '#fff', selection: false });
         
         // Sync initial brush settings with UI defaults
         const initialLineWidth = parseInt(lineWidthSliders[0].value, 10);
@@ -371,6 +371,7 @@ document.addEventListener('DOMContentLoaded', () => {
             authContainer.classList.add('d-none');
             appContainer.classList.remove('d-none');
             resizeCanvas();
+            setActiveTool(null); // Ensure no tool is active on load
             hideLoader();
         };
 
@@ -714,7 +715,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (isPanning && e.touches.length < 2) {
                 isPanning = false;
-                fabricCanvas.selection = true;
+                fabricCanvas.selection = (currentTool === 'select'); // Restore selection only if select tool is active
                 if (drawingModeWasActive) {
                     fabricCanvas.isDrawingMode = true;
                     drawingModeWasActive = false;
@@ -797,15 +798,25 @@ document.addEventListener('DOMContentLoaded', () => {
             fabricCanvas.isDrawingMode = isDrawTool;
 
             // Configure canvas based on tool
-            fabricCanvas.selection = (tool === 'select'); // Group selection only for 'select' tool
+            const isSelectMode = tool === 'select';
+            fabricCanvas.selection = isSelectMode;
 
-            if (tool === null) { // Neutral state
-                fabricCanvas.forEachObject(o => o.set('evented', o.isLink || false)); // Only links are interactive
-            } else if (tool === 'select') {
-                fabricCanvas.forEachObject(o => o.set('evented', true)); // All objects are interactive
-            } else { // draw, marker, eyedropper, shapes
-                fabricCanvas.forEachObject(o => o.set('evented', false)); // No objects are interactive
+            // When not in select mode, ensure nothing is selected
+            if (!isSelectMode) {
+                fabricCanvas.discardActiveObject();
             }
+
+            // Set object interactivity based on the current tool
+            fabricCanvas.forEachObject(obj => {
+                const isSelectable = (tool === 'select');
+                // An object can fire events if we are in select mode, OR
+                // if we are in neutral mode and the object is a link.
+                const isEvented = isSelectable || (tool === null && obj.isLink);
+                obj.set({ 
+                    selectable: isSelectable,
+                    evented: isEvented 
+                });
+            });
 
             if (tool === 'eyedropper') {
                 fabricCanvas.defaultCursor = 'crosshair';
