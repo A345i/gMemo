@@ -1,6 +1,16 @@
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(registration => {
+    // Use the correct path for different deployment scenarios
+    let swPath;
+    if (window.location.protocol === 'file:') {
+      // For local file access (opening index.html directly in browser)
+      swPath = './sw.js';
+    } else {
+      // For GitHub Pages (and other web servers)
+      swPath = '/gMemo/sw.js';
+    }
+    
+    navigator.serviceWorker.register(swPath).then(registration => {
       console.log('ServiceWorker registration successful with scope: ', registration.scope);
     }, err => {
       console.log('ServiceWorker registration failed: ', err);
