@@ -8,14 +8,6 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-// --- Unique ID Generator ---
-function generateUUID() { 
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
     try {
         // --- Supabase Setup ---
@@ -78,9 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
         // --- App State ---
-        let realtimeChannel = null;
-        const clientId = `client-${Math.random().toString(36).substring(2, 9)}`;
-        let pages = [{ objects: null, deletedIds: new Set() }];
+        let pages = [null];
         let currentPageIndex = 0;
         let currentTool = null;
         let history = [];
@@ -195,13 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         fontSize: 24,
                         fontFamily: 'Arial',
                         originX: 'center',
-                        originY: 'center',
-                        gmemoId: generateUUID(),
-                        lastModified: new Date().toISOString()
+                        originY: 'center'
                     });
                     fabricCanvas.add(textObject);
                     fabricCanvas.setActiveObject(textObject);
                     fabricCanvas.renderAll();
+                    saveState();
                 }
                 voiceModal.hide();
                 voiceInputPosition = null;
@@ -312,166 +301,137 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutButton.addEventListener('click', async () => { 
             showLoader(); 
             await saveNotesToSupabase(); 
-            
-            // --- Unsubscribe from Realtime Channel ---
-            if (realtimeChannel) {
-                realtimeChannel.unsubscribe();
-                realtimeChannel = null;
-            }
-
             await supabaseClient.auth.signOut(); 
         });
 
         // --- Supabase Data Functions ---
-        const mergeAndLoadData = (remoteData) => {
-            historyLock = true; // Prevent saving during merge
-            
-            // Convert remote deletedIds arrays to Sets for efficient lookup
-            const remotePages = remoteData.pages.map(p => ({
-                ...p,
-                deletedIds: new Set(p.deletedIds || [])
-            }));
-
-            // Merge page structure (add/remove pages)
-            if (remotePages.length !== pages.length) {
-                // Simple case: just adopt the remote page structure
-                // A more complex merge could be implemented here if needed
-                pages = remotePages.map(p => ({
-                    objects: p.objects || null,
-                    deletedIds: p.deletedIds || new Set()
-                }));
-            }
-
-            // Merge content of the current page
-            const remoteCurrentPage = remotePages[remoteData.currentPageIndex];
-            const localCurrentPage = pages[remoteData.currentPageIndex];
-
-            if (remoteCurrentPage && remoteCurrentPage.objects) {
-                const remoteObjects = remoteCurrentPage.objects.objects || [];
-                const localObjects = fabricCanvas.getObjects();
-                const localObjectMap = new Map(localObjects.map(obj => [obj.gmemoId, obj]));
-
-                // 1. Handle deleted objects
-                remoteCurrentPage.deletedIds.forEach(deletedId => {
-                    if (localObjectMap.has(deletedId)) {
-                        fabricCanvas.remove(localObjectMap.get(deletedId));
-                        localObjectMap.delete(deletedId);
-                    }
-                    localCurrentPage.deletedIds.add(deletedId);
-                });
-
-                // 2. Add new objects and update existing ones
-                remoteObjects.forEach(remoteObj => {
-                    if (!remoteObj.gmemoId || localCurrentPage.deletedIds.has(remoteObj.gmemoId)) {
-                        return; // Skip objects without ID or already deleted locally
-                    }
-
-                    const localObject = localObjectMap.get(remoteObj.gmemoId);
-                    if (!localObject) { // New object
-                        fabric.util.enlivenObjects([remoteObj], (enlivened) => {
-                            if (enlivened.length > 0) {
-                                fabricCanvas.add(enlivened[0]);
-                            }
-                        }, '');
-                    } else { // Existing object, check timestamp
-                        if (new Date(remoteObj.lastModified) > new Date(localObject.lastModified)) {
-                            // Remote is newer, update local
-                            localObject.set(remoteObj);
-                        }
-                        // Mark as processed
-                        localObjectMap.delete(remoteObj.gmemoId);
-                    }
-                });
-                
-                fabricCanvas.renderAll();
-            }
-            
-            // Update local data store and UI
-            pages = remotePages;
-            if (currentPageIndex !== remoteData.currentPageIndex) {
-                loadPage(remoteData.currentPageIndex, true); // Force load page without merge
-            } else {
-                // If on the same page, just update the indicator
-                updatePageIndicator();
-            }
-
-            historyLock = false;
-        };
-
         const loadNotesFromSupabase = async () => {
             dataLoaded = false;
             const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
-
             if (error && error.code !== 'PGRST116') {
                 console.error('Error fetching notes:', error);
-                loadPage(0); // Load a blank page on critical error
-                dataLoaded = true;
-                return;
-            }
-
-            if (data && data.profile_text) {
+            } else if (data && data.profile_text) {
                 try {
                     const savedData = JSON.parse(data.profile_text);
-                    let migratedData = { pages: [], currentPageIndex: 0 };
-
-                    // --- Data Migration Logic ---
+                    // Handle both old format (array of pages) and new format (object with pages and currentPageIndex)
                     if (Array.isArray(savedData)) {
-                        // Very old format: [fabricJSON1, fabricJSON2]
-                        migratedData.pages = savedData.map(p => ({ objects: p, deletedIds: new Set() }));
-                        migratedData.currentPageIndex = 0;
-                    } else if (savedData && typeof savedData === 'object' && Array.isArray(savedData.pages)) {
-                        const firstPage = savedData.pages[0];
-                        if (firstPage && firstPage.objects === undefined) {
-                            // Old format: { pages: [fabricJSON1, ...], currentPageIndex: 0 }
-                            migratedData.pages = savedData.pages.map(p => ({ objects: p, deletedIds: new Set() }));
-                            migratedData.currentPageIndex = savedData.currentPageIndex || 0;
+                        // Old format - only pages array
+                        pages = savedData;
+                        loadPage(0); // Default to first page for old data
+                    } else if (savedData && typeof savedData === 'object') {
+                        // New format - object with pages and currentPageIndex
+                        if (Array.isArray(savedData.pages)) {
+                            pages = savedData.pages;
+                        }
+                        const savedCurrentPageIndex = savedData.currentPageIndex || 0;
+                        // Validate that the saved index is within bounds
+                        if (savedCurrentPageIndex >= pages.length) {
+                            loadPage(Math.max(0, pages.length - 1));
                         } else {
-                            // New format, just convert deletedIds array to Set
-                            migratedData.pages = savedData.pages.map(p => ({
-                                objects: p.objects || null,
-                                deletedIds: new Set(p.deletedIds || [])
-                            }));
-                            migratedData.currentPageIndex = savedData.currentPageIndex || 0;
+                            loadPage(savedCurrentPageIndex);
                         }
                     }
-
-                    pages = migratedData.pages;
-                    const pageIndex = migratedData.currentPageIndex || 0;
-                    loadPage(pageIndex >= pages.length ? 0 : pageIndex);
-
                 } catch (e) {
-                    console.error('Error parsing or migrating saved notes JSON:', e);
-                    loadPage(0); // Load blank page if parsing fails
+                    console.error('Error parsing saved notes JSON:', e);
                 }
-            } else {
-                loadPage(0); // Load blank page if no data
+            }
+            else {
+                loadPage(0);
             }
             dataLoaded = true;
         };
+
+        const saveNotesToSupabase = async () => {
+            if (!currentUser || !dataLoaded) {
+                return;
+            }
+            saveCurrentPage();
+            // Save both pages and current page index in a single object
+            const saveData = {
+                pages: pages,
+                currentPageIndex: currentPageIndex
+            };
+            const notesJson = JSON.stringify(saveData);
+            const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
+            if (error) {
+                console.error('Error saving to Supabase:', error);
+            } else {
+                saveIndicator.classList.remove('unsaved');
+                saveIndicator.classList.add('saved');
+                setTimeout(() => {
+                    saveIndicator.classList.remove('saved');
+                }, 1500);
+            }
+        };
         
-        const loadPage = (pageIndex, forceReload = false) => {
+        const debouncedSave = _.debounce(saveNotesToSupabase, 2000);
+
+        // --- NEW, ROBUST AUTH HANDLING ---
+        const setupAuthenticatedApp = async (session) => {
+            if (currentUser && dataLoaded) { return; } // Prevent re-initialization on token refresh
+            currentUser = session.user;
+            await loadNotesFromSupabase();
+            userEmailDisplay.textContent = currentUser.email;
+            authContainer.classList.add('d-none');
+            appContainer.classList.remove('d-none');
+            resizeCanvas();
+            setActiveTool(null); // Ensure no tool is active on load
+            hideLoader();
+        };
+
+        const setupLoginPage = () => {
+            currentUser = null;
+            authContainer.classList.remove('d-none');
+            appContainer.classList.add('d-none');
+            pages = [null];
+            currentPageIndex = 0;
+            dataLoaded = false;
+            hideLoader();
+        };
+
+        const initializeApp = async () => {
+            showLoader();
+            const { data: { session }, error } = await supabaseClient.auth.getSession();
+            if (error) { console.error("Error getting session:", error); setupLoginPage(); return; }
+            if (session) { await setupAuthenticatedApp(session); } else { setupLoginPage(); }
+        };
+
+        supabaseClient.auth.onAuthStateChange((event, session) => {
+            if (event === 'SIGNED_IN') { setupAuthenticatedApp(session); } 
+            else if (event === 'SIGNED_OUT') { setupLoginPage(); }
+        });
+
+        initializeApp();
+
+        // --- Canvas & App Logic ---
+        const saveState = () => { 
+            if (historyLock) return;
+            saveIndicator.classList.remove('saved');
+            saveIndicator.classList.add('unsaved');
+            redoStack = []; 
+            const state = fabricCanvas.toJSON(['isLink', 'url']);
+            state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
+            history.push(state); 
+            updateHistoryButtons(); 
+            debouncedSave(); 
+        };
+        
+        const loadPage = (pageIndex) => {
             if (pageIndex < 0 || pageIndex >= pages.length) return;
-            
             currentPageIndex = pageIndex;
             const pageData = pages[currentPageIndex];
-            
             historyLock = true;
             fabricCanvas.clear();
             fabricCanvas.backgroundColor = '#fff';
-
-            if (pageData && pageData.objects) {
-                // Filter out objects that are marked as deleted
-                const validObjects = pageData.objects.objects.filter(obj => obj.gmemoId && !pageData.deletedIds.has(obj.gmemoId));
-                const filteredData = { ...pageData.objects, objects: validObjects };
-
-                fabricCanvas.loadFromJSON(filteredData, () => {
-                    if (pageData.objects.viewportTransform) {
-                        fabricCanvas.setViewportTransform(pageData.objects.viewportTransform);
+            if (pageData) {
+                fabricCanvas.loadFromJSON(pageData, () => {
+                    if (pageData.viewportTransform) {
+                        fabricCanvas.setViewportTransform(pageData.viewportTransform);
                     } else {
                         fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
                     }
                     fabricCanvas.renderAll();
-                    resetHistory(filteredData);
+                    resetHistory(pageData);
                     historyLock = false;
                 });
             } else {
@@ -496,14 +456,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let pinchStartZoom = 1;
         let touchStartTime = 0;
         let lastTouchTarget = null;
-
-        fabricCanvas.on('path:created', function(e) {
-            const path = e.path;
-            path.set({
-                gmemoId: generateUUID(),
-                lastModified: new Date().toISOString()
-            });
-        });
 
         fabricCanvas.on('mouse:wheel', function(opt) {
             if (!opt.e.altKey) return;
@@ -563,17 +515,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.setCursor('grabbing');
             } else if (!isTouching && currentTool === 'text' && !opt.target) {
                 const pointer = fabricCanvas.getPointer(opt.e);
-                const text = new fabric.IText('Текст', { 
-                    left: pointer.x, 
-                    top: pointer.y, 
-                    fill: colorPickers[0].value, 
-                    fontSize: 24, 
-                    fontFamily: 'Arial', 
-                    originX: 'center', 
-                    originY: 'center',
-                    gmemoId: generateUUID(),
-                    lastModified: new Date().toISOString()
-                });
+                const text = new fabric.IText('Текст', { left: pointer.x, top: pointer.y, fill: colorPickers[0].value, fontSize: 24, fontFamily: 'Arial', originX: 'center', originY: 'center' });
                 fabricCanvas.add(text);
                 fabricCanvas.setActiveObject(text);
                 text.enterEditing();
@@ -671,14 +613,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 isPanning = false;
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
+                saveState(); // Save state after panning
             } else if (isDrawingShape) {
                 isDrawingShape = false;
                 if (shapeInProgress) {
-                    shapeInProgress.set({
-                        gmemoId: generateUUID(),
-                        lastModified: new Date().toISOString()
-                    });
                     shapeInProgress.setCoords(); // Finalize coordinates
+                    saveState();
                 }
                 shapeInProgress = null;
             } else if (!isTouching && currentTool === null && opt.target && opt.target.isLink && !opt.target.isEditing) {
@@ -784,21 +724,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     fabricCanvas.isDrawingMode = true;
                     drawingModeWasActive = false;
                 }
+                saveState(); // Save state after touch pan/zoom
             }
             if (e.touches.length === 0) { isTouching = false; lastTouchTarget = null; }
         }, { passive: false });
-
-        const saveState = () => { 
-            if (historyLock) return;
-            saveIndicator.classList.remove('saved');
-            saveIndicator.classList.add('unsaved');
-            redoStack = []; 
-            const state = fabricCanvas.toJSON(['gmemoId', 'lastModified', 'isLink', 'url']);
-            state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
-            history.push(state); 
-            updateHistoryButtons(); 
-            debouncedSave(); 
-        };
 
         const updateHistoryButtons = () => {
             const undoDisabled = history.length <= 1;
@@ -810,7 +739,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const resetHistory = (initialState = null) => {
-            const state = initialState || fabricCanvas.toJSON(['gmemoId', 'lastModified', 'isLink', 'url']);
+            const state = initialState || fabricCanvas.toJSON(['isLink', 'url']);
             if (!state.viewportTransform) {
                 state.viewportTransform = [1, 0, 0, 1, 0, 0];
             }
@@ -907,17 +836,10 @@ document.addEventListener('DOMContentLoaded', () => {
         historyButtons.grid.addEventListener('click', toggleGrid);
 
         const saveCurrentPage = () => {
-            const pageData = fabricCanvas.toJSON(['gmemoId', 'lastModified', 'isLink', 'url']);
+            const pageData = fabricCanvas.toJSON(['isLink', 'url']);
             pageData.viewportTransform = fabricCanvas.viewportTransform;
-            
-            // Ensure the page object exists and has the correct structure
-            if (!pages[currentPageIndex]) {
-                pages[currentPageIndex] = { objects: null, deletedIds: new Set() };
-            }
-            
-            pages[currentPageIndex].objects = pageData;
+            pages[currentPageIndex] = pageData;
         };
-
         const updatePageIndicator = () => { pageControls.indicator.textContent = `Стр. ${currentPageIndex + 1} / ${pages.length}`; };
         
         const setActiveTool = (tool) => {
@@ -996,6 +918,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const newVpt = [1, 0, 0, 1, 0, 0];
                 fabricCanvas.setViewportTransform(newVpt);
                 fabricCanvas.renderAll();
+                saveState();
                 return;
             }
             const group = new fabric.Group(objects);
@@ -1010,6 +933,7 @@ document.addEventListener('DOMContentLoaded', () => {
             newVpt[5] = (canvasHeight - (aabb.height * scale)) / 2 - (aabb.top * scale);
             fabricCanvas.setViewportTransform(newVpt);
             fabricCanvas.renderAll();
+            saveState();
         }
 
         function exportCanvas() {
@@ -1030,77 +954,35 @@ document.addEventListener('DOMContentLoaded', () => {
                 const tool = e.currentTarget.dataset.tool;
                 if (tool) {
                     if (tool === 'delete') {
-                        const activeObjects = fabricCanvas.getActiveObjects();
-                        if (activeObjects.length > 0) {
-                            const currentPage = pages[currentPageIndex];
-                            activeObjects.forEach(obj => {
-                                if (obj.gmemoId) {
-                                    currentPage.deletedIds.add(obj.gmemoId);
-                                }
-                                fabricCanvas.remove(obj);
-                            });
-                            fabricCanvas.discardActiveObject();
-                            fabricCanvas.renderAll();
-                            saveState(); // Save state after deletion
-                        }
+                        fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
+                        fabricCanvas.discardActiveObject().renderAll();
                     } else if (tool === 'copy') {
                         const activeObject = fabricCanvas.getActiveObject();
                         if (!activeObject) return;
 
                         activeObject.clone((cloned) => {
                             fabricCanvas.discardActiveObject();
-                            
-                            const assignNewIds = (obj) => {
-                                obj.set({
-                                    gmemoId: generateUUID(),
-                                    lastModified: new Date().toISOString()
-                                });
-                                if (obj.isLink) {
-                                    // Ensure custom properties are cloned
-                                    obj.isLink = activeObject.isLink;
-                                    obj.url = activeObject.url;
-                                }
-                            };
-
-                            if (cloned.type === 'activeSelection') {
-                                cloned.canvas = fabricCanvas;
-                                cloned.forEachObject(obj => {
-                                    assignNewIds(obj);
-                                    fabricCanvas.add(obj);
-                                });
-                            } else {
-                                assignNewIds(cloned);
-                                fabricCanvas.add(cloned);
-                            }
-
                             cloned.set({
                                 left: cloned.left + 20,
                                 top: cloned.top + 20,
-                                evented: true,
+                                evented: true, // Make sure clone is interactive
                             });
-                            cloned.setCoords();
-                            
+                            if (cloned.type === 'activeSelection') {
+                                cloned.canvas = fabricCanvas;
+                                cloned.forEachObject(obj => fabricCanvas.add(obj));
+                                cloned.setCoords();
+                            } else {
+                                fabricCanvas.add(cloned);
+                            }
                             fabricCanvas.setActiveObject(cloned);
                             fabricCanvas.requestRenderAll();
-                            saveState(); // Explicitly save state after cloning
-                        }, ['gmemoId', 'lastModified', 'isLink', 'url']);
+                        });
                     } else if (tool === 'link') {
                         const url = prompt("Введите URL ссылки:", "https://");
                         if (!url) return;
                         const text = prompt("Введите текст для ссылки:", "Моя ссылка");
                         if (!text) return;
-                        const linkText = new fabric.IText(text, { 
-                            left: 150, 
-                            top: 150, 
-                            fontSize: 24, 
-                            fill: '#007bff', 
-                            underline: true, 
-                            fontFamily: 'Arial', 
-                            isLink: true, 
-                            url: url,
-                            gmemoId: generateUUID(),
-                            lastModified: new Date().toISOString()
-                        });
+                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url });
                         fabricCanvas.add(linkText);
                     } else {
                         // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
@@ -1130,69 +1012,17 @@ document.addEventListener('DOMContentLoaded', () => {
         widthIncreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width + 1));
         widthDecreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width - 1));
 
-        widthDecreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width - 1));
-
-        imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); img.set({ gmemoId: generateUUID(), lastModified: new Date().toISOString() }); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
+        imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
+        window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
         
-        window.addEventListener('keydown', (e) => {
-            if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) {
-                document.querySelector('[data-tool="delete"]').click();
-            }
-        });
-        
-        fabricCanvas.on({
-            'object:added': (e) => {
-                // This event now primarily handles adding objects that might not have IDs yet,
-                // like during some complex operations. Most ID assignments are now done at creation time.
-                if (e.target && !e.target.gmemoId) {
-                    e.target.set({
-                        gmemoId: generateUUID(),
-                        lastModified: new Date().toISOString()
-                    });
-                }
-                saveState();
-            },
-            'object:removed': saveState,
-            'object:modified': (e) => {
-                if (e.target) {
-                    const modifiedObjects = e.target.type === 'activeSelection' 
-                        ? e.target.getObjects() 
-                        : [e.target];
-                    
-                    const timestamp = new Date().toISOString();
-                    modifiedObjects.forEach(obj => {
-                        obj.set('lastModified', timestamp);
-                    });
-                }
-                saveState();
-            }
-        });
+        fabricCanvas.on({ 'object:added': saveState, 'object:removed': saveState, 'object:modified': saveState });
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
 
         // --- Page Navigation with IMMEDIATE save ---
         pageControls.prev.addEventListener('click', async () => { if (currentPageIndex > 0) { showLoader(); await saveNotesToSupabase(); loadPage(currentPageIndex - 1); hideLoader(); } });
         pageControls.next.addEventListener('click', async () => { if (currentPageIndex < pages.length - 1) { showLoader(); await saveNotesToSupabase(); loadPage(currentPageIndex + 1); hideLoader(); } });
-        pageControls.add.addEventListener('click', async () => { 
-            showLoader(); 
-            await saveNotesToSupabase(); 
-            pages.push({ objects: null, deletedIds: new Set() }); 
-            loadPage(pages.length - 1); 
-            hideLoader(); 
-        });
-        pageControls.delete.addEventListener('click', async () => { 
-            if (pages.length <= 1) { 
-                alert("Нельзя удалить последнюю с��раницу."); 
-                return; 
-            } 
-            if (confirm("Вы уверены, что хотите удалить эту страницу?")) { 
-                showLoader(); 
-                pages.splice(currentPageIndex, 1); 
-                const newPageIndex = Math.min(currentPageIndex, pages.length - 1);
-                loadPage(newPageIndex); 
-                await saveNotesToSupabase(); // Save after deleting and loading the correct page
-                hideLoader(); 
-            } 
-        });
+        pageControls.add.addEventListener('click', async () => { showLoader(); await saveNotesToSupabase(); pages.push(null); loadPage(pages.length - 1); hideLoader(); });
+        pageControls.delete.addEventListener('click', async () => { if (pages.length <= 1) { alert("Нельзя удалить последнюю страницу."); return; } if (confirm("Вы уверены, что хотите удалить эту страницу?")) { showLoader(); pages.splice(currentPageIndex, 1); if (currentPageIndex >= pages.length) currentPageIndex = pages.length - 1; loadPage(currentPageIndex); await saveNotesToSupabase(); hideLoader(); } });
         pageControls.export.addEventListener('click', exportCanvas);
 
     } catch (e) {
