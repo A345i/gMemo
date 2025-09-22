@@ -115,6 +115,9 @@
                             <button data-tool="circle" class="btn btn-light" title="Круг"><i class="bi bi-circle"></i></button>
                         </li>
                         <li class="nav-item ms-2 border-start ps-2">
+                            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
+                        </li>
+                        <li class="nav-item">
                             <button data-tool="text" class="btn btn-light" title="Добавить текст"><i class="bi bi-fonts"></i></button>
                         </li>
                         <li class="nav-item">
@@ -123,9 +126,6 @@
                         </li>
                         <li class="nav-item">
                             <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
                         </li>
                         <li class="nav-item">
                             <button data-tool="copy" class="btn btn-light" title="Копировать выбранное"><i class="bi bi-files"></i></button>
@@ -146,20 +146,33 @@
 
                     <!-- Global Controls (History & Pages) -->
                     <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
+                        <!-- History (Desktop only) -->
                         <li class="nav-item d-none d-lg-flex align-items-center border-start ps-2">
                             <button id="undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
                             <button id="redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
                         </li>
+
+                        <!-- Canvas Tools -->
                         <li class="nav-item d-flex align-items-center ms-lg-3 border-start ps-2">
-                            <button id="grid-button" class="btn btn-light me-2" title="Показать сетку"><i class="bi bi-grid-3x3-gap"></i></button>
-                            <button id="show-all-button" class="btn btn-light me-2" title="Показать всё"><i class="bi bi-search"></i></button>
-                            <button id="export-button" class="btn btn-light me-2" title="Экспорт в PNG"><i class="bi bi-download"></i></button>
+                            <button id="grid-button" class="btn btn-light" title="Показать сетку"><i class="bi bi-grid-3x3-gap"></i></button>
+                            <button id="show-all-button" class="btn btn-light" title="Показать всё"><i class="bi bi-search"></i></button>
+                            <button id="export-button" class="btn btn-light" title="Экспорт в PNG"><i class="bi bi-download"></i></button>
+                        </li>
+
+                        <!-- Page Navigation -->
+                        <li class="nav-item d-flex align-items-center ms-lg-2">
                             <button id="prev-page" class="btn btn-light"><i class="bi bi-arrow-left-circle"></i></button>
                             <span id="page-indicator" class="mx-2 text-nowrap">Стр. 1 / 1</span>
                             <button id="next-page" class="btn btn-light"><i class="bi bi-arrow-right-circle"></i></button>
-                            <button id="add-page" class="btn btn-primary ms-3 btn-sm"><i class="bi bi-plus-lg"></i></button>
-                            <button id="delete-page" class="btn btn-danger ms-2 btn-sm" title="Удалить текущую страницу"><i class="bi bi-trash-fill"></i></button>
                         </li>
+                        
+                        <!-- Page Actions -->
+                        <li class="nav-item d-flex align-items-center ms-lg-2">
+                             <button id="add-page" class="btn btn-primary btn-sm"><i class="bi bi-plus-lg"></i></button>
+                             <button id="delete-page" class="btn btn-danger ms-2 btn-sm" title="Удалить текущую страницу"><i class="bi bi-trash-fill"></i></button>
+                        </li>
+
+                        <!-- User Menu -->
                          <li class="nav-item dropdown ms-lg-3 border-start ps-2">
                             <a class="nav-link dropdown-toggle" href="#" id="user-dropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                                 <i class="bi bi-person-circle"></i> <span id="user-email-display"></span>
