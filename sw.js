@@ -1,19 +1,19 @@
 const CACHE_NAME = 'gmemo-cache-v1';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/css/bootstrap-icons-old.min.css',
-  '/css/bootstrap-icons.min.css',
-  '/css/bootstrap.min.css',
-  '/css/style.css',
-  '/icons/icon-192x192.png',
-  '/icons/icon-512x512-maskable.png',
-  '/icons/icon-512x512.png',
-  '/js/bootstrap.bundle.min.js',
-  '/js/fabric.min.js',
-  '/js/script.js',
-  '/webfonts/bootstrap-icons.woff',
-  '/webfonts/bootstrap-icons.woff2'
+  '/gMemo/',
+  '/gMemo/index.html',
+  '/gMemo/css/bootstrap-icons-old.min.css',
+  '/gMemo/css/bootstrap-icons.min.css',
+  '/gMemo/css/bootstrap.min.css',
+  '/gMemo/css/style.css',
+  '/gMemo/icons/icon-192x192.png',
+  '/gMemo/icons/icon-512x512-maskable.png',
+  '/gMemo/icons/icon-512x512.png',
+  '/gMemo/js/bootstrap.bundle.min.js',
+  '/gMemo/js/fabric.min.js',
+  '/gMemo/js/script.js',
+  '/gMemo/webfonts/bootstrap-icons.woff',
+  '/gMemo/webfonts/bootstrap-icons.woff2'
 ];
 
 self.addEventListener('install', event => {
