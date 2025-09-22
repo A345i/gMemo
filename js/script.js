@@ -401,26 +401,47 @@ document.addEventListener('DOMContentLoaded', () => {
         const loadNotesFromSupabase = async () => {
             dataLoaded = false;
             const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
+
             if (error && error.code !== 'PGRST116') {
                 console.error('Error fetching notes:', error);
-                loadPage(0); // Load a blank page on error
-            } else if (data && data.profile_text) {
+                loadPage(0); // Load a blank page on critical error
+                dataLoaded = true;
+                return;
+            }
+
+            if (data && data.profile_text) {
                 try {
                     const savedData = JSON.parse(data.profile_text);
-                    if (savedData && typeof savedData === 'object' && Array.isArray(savedData.pages)) {
-                        // Convert deletedIds from array to Set
-                        pages = savedData.pages.map(p => ({
-                            objects: p.objects || null,
-                            deletedIds: new Set(p.deletedIds || [])
-                        }));
-                        const pageIndex = savedData.currentPageIndex || 0;
-                        loadPage(pageIndex >= pages.length ? 0 : pageIndex);
-                    } else {
-                         loadPage(0); // Load blank page if data is malformed
+                    let migratedData = { pages: [], currentPageIndex: 0 };
+
+                    // --- Data Migration Logic ---
+                    if (Array.isArray(savedData)) {
+                        // Very old format: [fabricJSON1, fabricJSON2]
+                        migratedData.pages = savedData.map(p => ({ objects: p, deletedIds: new Set() }));
+                        migratedData.currentPageIndex = 0;
+                    } else if (savedData && typeof savedData === 'object' && Array.isArray(savedData.pages)) {
+                        const firstPage = savedData.pages[0];
+                        if (firstPage && firstPage.objects === undefined) {
+                            // Old format: { pages: [fabricJSON1, ...], currentPageIndex: 0 }
+                            migratedData.pages = savedData.pages.map(p => ({ objects: p, deletedIds: new Set() }));
+                            migratedData.currentPageIndex = savedData.currentPageIndex || 0;
+                        } else {
+                            // New format, just convert deletedIds array to Set
+                            migratedData.pages = savedData.pages.map(p => ({
+                                objects: p.objects || null,
+                                deletedIds: new Set(p.deletedIds || [])
+                            }));
+                            migratedData.currentPageIndex = savedData.currentPageIndex || 0;
+                        }
                     }
+
+                    pages = migratedData.pages;
+                    const pageIndex = migratedData.currentPageIndex || 0;
+                    loadPage(pageIndex >= pages.length ? 0 : pageIndex);
+
                 } catch (e) {
-                    console.error('Error parsing saved notes JSON:', e);
-                    loadPage(0);
+                    console.error('Error parsing or migrating saved notes JSON:', e);
+                    loadPage(0); // Load blank page if parsing fails
                 }
             } else {
                 loadPage(0); // Load blank page if no data
