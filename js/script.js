@@ -40,7 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
             redo: document.getElementById('redo-button'),
             mobileUndo: document.getElementById('mobile-undo-button'),
             mobileRedo: document.getElementById('mobile-redo-button'),
-            showAll: document.getElementById('show-all-button')
+            showAll: document.getElementById('show-all-button'),
+            grid: document.getElementById('grid-button')
         };
         const pageControls = { 
             prev: document.getElementById('prev-page'), 
@@ -81,6 +82,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let shapeInProgress = null;
         let startX, startY;
         let voiceInputPosition = null; // Для хранения координат клика для голосового ввода
+        let isGridVisible = false;
+        const gridSpacing = 50; // Расстояние между линиями сетки в пикселях
+        const gridColor = '#e0e0e0';
 
         // --- Voice Recognition Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -781,6 +785,55 @@ document.addEventListener('DOMContentLoaded', () => {
         historyButtons.redo.addEventListener('click', redo);
         historyButtons.mobileRedo.addEventListener('click', redo);
         historyButtons.showAll.addEventListener('click', showAll);
+
+        // --- Grid Logic ---
+        const drawGrid = () => {
+            const zoom = fabricCanvas.getZoom();
+            const vpt = fabricCanvas.viewportTransform;
+            const scaledGridSpacing = gridSpacing * zoom;
+            const width = fabricCanvas.getWidth();
+            const height = fabricCanvas.getHeight();
+            const ctx = fabricCanvas.getContext();
+
+            ctx.save();
+            ctx.strokeStyle = gridColor;
+            ctx.lineWidth = 1;
+
+            // Calculate the offset based on the viewport transform
+            const xOffset = vpt[4] % scaledGridSpacing;
+            const yOffset = vpt[5] % scaledGridSpacing;
+
+            // Draw vertical lines
+            for (let x = xOffset; x < width; x += scaledGridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, height);
+                ctx.stroke();
+            }
+
+            // Draw horizontal lines
+            for (let y = yOffset; y < height; y += scaledGridSpacing) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(width, y);
+                ctx.stroke();
+            }
+            ctx.restore();
+        };
+
+        const toggleGrid = () => {
+            isGridVisible = !isGridVisible;
+            historyButtons.grid.classList.toggle('active', isGridVisible);
+            if (isGridVisible) {
+                fabricCanvas.on('after:render', drawGrid);
+                fabricCanvas.renderAll();
+            } else {
+                fabricCanvas.off('after:render', drawGrid);
+                fabricCanvas.renderAll(); // Re-render to clear the grid
+            }
+        };
+
+        historyButtons.grid.addEventListener('click', toggleGrid);
 
         const saveCurrentPage = () => {
             const pageData = fabricCanvas.toJSON(['isLink', 'url']);
