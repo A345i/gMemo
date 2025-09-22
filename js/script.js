@@ -686,17 +686,24 @@ document.addEventListener('DOMContentLoaded', () => {
         canvasEl.addEventListener('touchmove', (e) => {
             if (e.touches.length === 2 && isPanning) {
                 e.preventDefault();
-                const center = getTouchCenter(e.touches);
-                const vpt = fabricCanvas.viewportTransform;
-                vpt[4] += center.x - lastPosX;
-                vpt[5] += center.y - lastPosY;
+                const touchCenter = getTouchCenter(e.touches);
                 const currentDist = getTouchDistance(e.touches);
                 const zoomRatio = currentDist / pinchStartDistance;
                 const newZoom = pinchStartZoom * zoomRatio;
-                fabricCanvas.zoomToPoint(new fabric.Point(vpt[4], vpt[5]), newZoom);
+
+                // Рассчитываем смещение для панорамирования
+                const deltaX = touchCenter.x - lastPosX;
+                const deltaY = touchCenter.y - lastPosY;
+
+                // Применяем и зум, и панорамирование одновременно
+                fabricCanvas.zoomToPoint(new fabric.Point(touchCenter.x, touchCenter.y), newZoom);
+                fabricCanvas.relativePan(new fabric.Point(deltaX, deltaY));
+                
                 fabricCanvas.requestRenderAll();
-                lastPosX = center.x;
-                lastPosY = center.y;
+
+                // Обновляем последние позиции для следующего шага
+                lastPosX = touchCenter.x;
+                lastPosY = touchCenter.y;
             }
         }, { passive: false });
 
