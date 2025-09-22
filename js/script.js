@@ -903,6 +903,27 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (tool === 'delete') {
                         fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
                         fabricCanvas.discardActiveObject().renderAll();
+                    } else if (tool === 'copy') {
+                        const activeObject = fabricCanvas.getActiveObject();
+                        if (!activeObject) return;
+
+                        activeObject.clone((cloned) => {
+                            fabricCanvas.discardActiveObject();
+                            cloned.set({
+                                left: cloned.left + 20,
+                                top: cloned.top + 20,
+                                evented: true, // Make sure clone is interactive
+                            });
+                            if (cloned.type === 'activeSelection') {
+                                cloned.canvas = fabricCanvas;
+                                cloned.forEachObject(obj => fabricCanvas.add(obj));
+                                cloned.setCoords();
+                            } else {
+                                fabricCanvas.add(cloned);
+                            }
+                            fabricCanvas.setActiveObject(cloned);
+                            fabricCanvas.requestRenderAll();
+                        });
                     } else if (tool === 'link') {
                         const url = prompt("Введите URL ссылки:", "https://");
                         if (!url) return;
