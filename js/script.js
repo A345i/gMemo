@@ -97,6 +97,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const gridColor = '#e0e0e0';
         let realtimeChannel = null; // Для хранения подписки Realtime
         let sessionId = null; // --- NEW: Unique ID for this tab/session ---
+        let isSavingInProgress = false; // Флаг для отслеживания процесса сохранения
 
         // --- Voice Recognition Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -345,16 +346,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // First, check if this client is in the middle of saving.
                     // If so, ignore the incoming ping because it's likely an echo of our own change.
-                    if (saveIndicator.classList.contains('unsaved')) {
+                    if (isSavingInProgress) {
                         console.log("Ignoring incoming update to prevent conflict with local pending save.");
                         return;
                     }
 
                     console.log('Realtime "ping" received from another session. Refetching data.');
                     
-                    // Fetch the latest data from the database directly.
-                    // This is guaranteed to work and get the most recent version.
-                    loadNotesFromSupabase();
+                    // Добавим небольшую задержку, чтобы предотвратить слишком частые обновления
+                    setTimeout(() => {
+                        // Fetch the latest data from the database directly.
+                        // This is guaranteed to work and get the most recent version.
+                        loadNotesFromSupabase();
+                    }, 300); // 300ms задержка
                 })
                 .subscribe((status, err) => {
                     if (status === 'SUBSCRIBED') {
@@ -404,8 +408,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const saveNotesToSupabase = async () => {
             if (!currentUser || !dataLoaded) {
+                console.log("Skipping save: Not authenticated or data not loaded");
                 return;
             }
+            
+            // Установить флаг перед началом сохранения
+            isSavingInProgress = true;
+            console.log("Starting save to Supabase...");
+            
             saveCurrentPage();
             // Save both pages and current page index in a single object
             const saveData = {
@@ -415,6 +425,11 @@ document.addEventListener('DOMContentLoaded', () => {
             };
             const notesJson = JSON.stringify(saveData);
             const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
+            
+            // Сбросить флаг после завершения сохранения
+            isSavingInProgress = false;
+            console.log("Save to Supabase completed.");
+            
             if (error) {
                 console.error('Error saving to Supabase:', error);
             } else {
@@ -489,26 +504,51 @@ document.addEventListener('DOMContentLoaded', () => {
             currentPageIndex = pageIndex;
             const pageData = pages[currentPageIndex];
             historyLock = true;
-            fabricCanvas.clear();
-            fabricCanvas.backgroundColor = '#fff';
-            if (pageData) {
-                fabricCanvas.loadFromJSON(pageData, () => {
-                    if (pageData.viewportTransform) {
-                        fabricCanvas.setViewportTransform(pageData.viewportTransform);
-                    } else {
-                        fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-                    }
+            
+            // Apply fade-out effect
+            fabricCanvas.lowerCanvasEl.classList.add('fade-out');
+            
+            // Wait for the fade-out animation to complete before loading new data
+            setTimeout(() => {
+                fabricCanvas.clear();
+                fabricCanvas.backgroundColor = '#fff';
+                if (pageData) {
+                    fabricCanvas.loadFromJSON(pageData, () => {
+                        if (pageData.viewportTransform) {
+                            fabricCanvas.setViewportTransform(pageData.viewportTransform);
+                        } else {
+                            fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                        }
+                        fabricCanvas.renderAll();
+                        resetHistory(pageData);
+                        historyLock = false;
+                        
+                        // Apply fade-in effect after data is loaded
+                        fabricCanvas.lowerCanvasEl.classList.remove('fade-out');
+                        fabricCanvas.lowerCanvasEl.classList.add('fade-in');
+                        
+                        // Remove fade-in class after animation completes
+                        setTimeout(() => {
+                            fabricCanvas.lowerCanvasEl.classList.remove('fade-in');
+                        }, 300);
+                    });
+                } else {
+                    fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
                     fabricCanvas.renderAll();
-                    resetHistory(pageData);
+                    resetHistory();
                     historyLock = false;
-                });
-            } else {
-                fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
-                fabricCanvas.renderAll();
-                resetHistory();
-                historyLock = false;
-            }
-            updatePageIndicator();
+                    
+                    // Apply fade-in effect after data is loaded
+                    fabricCanvas.lowerCanvasEl.classList.remove('fade-out');
+                    fabricCanvas.lowerCanvasEl.classList.add('fade-in');
+                    
+                    // Remove fade-in class after animation completes
+                    setTimeout(() => {
+                        fabricCanvas.lowerCanvasEl.classList.remove('fade-in');
+                    }, 300);
+                }
+                updatePageIndicator();
+            }, 150); // 150ms matches the CSS transition duration
         };
 
         if ('ontouchstart' in window) { fabric.Object.prototype.set({ cornerSize: 15, touchCornerSize: 44, transparentCorners: true, cornerColor: 'rgba(0,123,255,0.7)', borderColor: 'rgba(0,123,255,0.7)', cornerStyle: 'circle' }); }
