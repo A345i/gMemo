@@ -339,29 +339,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     filter: `id=eq.${currentUser.id}` 
                 }, 
                 (payload) => {
-                    try {
-                        const incomingData = JSON.parse(payload.new.profile_text);
+                    // --- NEW, MORE ROBUST SYNC LOGIC ---
+                    // The user's Supabase project sends notifications without data.
+                    // So, we treat the notification as a simple "ping" to refetch the data.
 
-                        // --- ROBUST SYNC LOGIC ---
-                        // 1. If the update has no session ID, or it's from us, ignore it.
-                        if (!incomingData.lastUpdatedBy || incomingData.lastUpdatedBy === sessionId) {
-                            return;
-                        }
-
-                        console.log('Realtime update received from another session:', payload);
-
-                        // 2. The data has changed externally. Update our master `pages` array.
-                        if (Array.isArray(incomingData.pages)) {
-                            pages = incomingData.pages;
-                        }
-
-                        // 3. Force a reload of the current page to show the latest data.
-                        // This ensures consistency across all clients.
-                        loadPage(currentPageIndex);
-
-                    } catch (e) {
-                        console.error("Error processing realtime update:", e);
+                    // First, check if this client is in the middle of saving.
+                    // If so, ignore the incoming ping because it's likely an echo of our own change.
+                    if (saveIndicator.classList.contains('unsaved')) {
+                        console.log("Ignoring incoming update to prevent conflict with local pending save.");
+                        return;
                     }
+
+                    console.log('Realtime "ping" received from another session. Refetching data.');
+                    
+                    // Fetch the latest data from the database directly.
+                    // This is guaranteed to work and get the most recent version.
+                    loadNotesFromSupabase();
                 })
                 .subscribe((status, err) => {
                     if (status === 'SUBSCRIBED') {
