@@ -113,7 +113,7 @@
                                 <li><button data-tool="circle" class="dropdown-item" title="Круг"><i class="bi bi-circle"></i> Круг</button></li>
                             </ul>
                         </li>
-                        <li class="nav-item ms-2 border-start ps-2">
+                        <li class="nav-item ms-1 border-start ps-1">
                             <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
                         </li>
                         <li class="nav-item">
@@ -123,20 +123,17 @@
                             <label for="image-upload-desktop" class="btn btn-light" title="Добавить картинку"><i class="bi bi-image-fill"></i></label>
                             <input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;">
                         </li>
-                        <li class="nav-item">
-                            <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
-                        </li>
-                        <li class="nav-item ms-2 border-start ps-2">
-                            <button id="group-button" data-tool="group" class="btn btn-light" title="Группировать" disabled><i class="bi bi-collection"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button id="ungroup-button" data-tool="ungroup" class="btn btn-light" title="Разгруппировать" disabled><i class="bi bi-grid-1x2"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="copy" class="btn btn-light" title="Копировать выбранное"><i class="bi bi-files"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
+                        <li class="nav-item dropdown ms-1 border-start ps-1">
+                            <button class="btn btn-light dropdown-toggle" type="button" id="tools-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Инструменты">
+                                <i class="bi bi-tools"></i>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="tools-dropdown">
+                                <li><button data-tool="link" class="dropdown-item" title="Добавить ссылку"><i class="bi bi-link-45deg"></i> Ссылка</button></li>
+                                <li><button id="group-button" data-tool="group" class="dropdown-item" title="Группировать" disabled><i class="bi bi-collection"></i> Группировать</button></li>
+                                <li><button id="ungroup-button" data-tool="ungroup" class="dropdown-item" title="Разгруппировать" disabled><i class="bi bi-grid-1x2"></i> Разгруппировать</button></li>
+                                <li><button data-tool="copy" class="dropdown-item" title="Копировать"><i class="bi bi-files"></i> Копировать</button></li>
+                                <li><button data-tool="delete" class="dropdown-item text-danger" title="Удалить"><i class="bi bi-trash-fill"></i> Удалить</button></li>
+                            </ul>
                         </li>
                         <li class="nav-item ms-3">
                             <label for="color-picker-desktop" class="form-label small mb-0 me-1">Цвет:</label>
