@@ -1079,6 +1079,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 group.uuid = crypto.randomUUID(); // Assign UUID to the new group
                 fabricCanvas.renderAll();
                 saveState(); // Save state after grouping
+                updateGroupButtons(); // Update button states
             }
         };
 
@@ -1089,6 +1090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 activeGroup.toActiveSelection();
                 fabricCanvas.renderAll();
                 saveState(); // Save state after ungrouping
+                updateGroupButtons(); // Update button states
             }
         };
 
@@ -1166,6 +1168,97 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
 
+        // Add event listeners for buttons in the tools dropdown
+        const toolButtonsInDropdown = document.querySelectorAll('#tools-dropdown ~ .dropdown-menu .dropdown-item[data-tool]');
+        toolButtonsInDropdown.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tool = button.dataset.tool;
+                if (tool) {
+                    // Close the dropdown after selecting a tool
+                    const dropdown = bootstrap.Dropdown.getInstance(button.closest('.dropdown'));
+                    if (dropdown) {
+                        dropdown.hide();
+                    }
+                    
+                    if (tool === 'group') {
+                        handleGroup();
+                    } else if (tool === 'ungroup') {
+                        handleUngroup();
+                    } else if (tool === 'copy') {
+                        const activeObject = fabricCanvas.getActiveObject();
+                        if (!activeObject) return;
+
+                        activeObject.clone((cloned) => {
+                            fabricCanvas.discardActiveObject();
+                            cloned.set({
+                                left: cloned.left + 20,
+                                top: cloned.top + 20,
+                                evented: true, // Make sure clone is interactive
+                            });
+                            if (cloned.type === 'activeSelection') {
+                                // active selection needs a reference to the canvas.
+                                cloned.canvas = fabricCanvas;
+                                cloned.forEachObject(obj => {
+                                    obj.uuid = crypto.randomUUID(); // --- NEW: Assign new UUID to each copied object
+                                    fabricCanvas.add(obj);
+                                });
+                                cloned.setCoords();
+                            } else {
+                                cloned.uuid = crypto.randomUUID(); // --- NEW: Assign new UUID to the copied object
+                                fabricCanvas.add(cloned);
+                            }
+                            fabricCanvas.setActiveObject(cloned);
+                            fabricCanvas.requestRenderAll();
+                            saveState(); // Save state after copying
+                        });
+                    } else if (tool === 'delete') {
+                        fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
+                        fabricCanvas.discardActiveObject().renderAll();
+                        saveState(); // Save state after deletion
+                    } else if (tool === 'link') {
+                        const url = prompt("Введите URL ссылки:", "https://");
+                        if (!url) return;
+                        const text = prompt("Введите текст для ссылки:", "Моя ссылка");
+                        if (!text) return;
+                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url, uuid: crypto.randomUUID() });
+                        fabricCanvas.add(linkText);
+                        saveState(); // Save state after adding link
+                    } else {
+                        // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
+                        if (tool === currentTool) {
+                            setActiveTool(null);
+                        } else {
+                            setActiveTool(tool);
+                        }
+                    }
+                }
+            });
+        });
+
+        // Add event listeners for shape buttons in the dropdown
+        const shapeDropdownButtons = document.querySelectorAll('#shapes-dropdown ~ .dropdown-menu .dropdown-item[data-tool]');
+        shapeDropdownButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tool = button.dataset.tool;
+                if (tool) {
+                    // Close the dropdown after selecting a tool
+                    const dropdown = bootstrap.Dropdown.getInstance(button.closest('.dropdown'));
+                    if (dropdown) {
+                        dropdown.hide();
+                    }
+                    
+                    // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
+                    if (tool === currentTool) {
+                        setActiveTool(null);
+                    } else {
+                        setActiveTool(tool);
+                    }
+                }
+            });
+        });
+
         // Add event listeners for shape buttons in the dropdown
         const shapeButtons = document.querySelectorAll('.dropdown-item[data-tool]');
         shapeButtons.forEach(button => {
@@ -1228,6 +1321,15 @@ document.addEventListener('DOMContentLoaded', () => {
             if (mobileGroupButton && mobileUngroupButton) {
                 mobileGroupButton.disabled = !(activeObject && activeObject.type === 'activeSelection');
                 mobileUngroupButton.disabled = !(activeObject && activeObject.type === 'group');
+            }
+            
+            // Update group/ungroup buttons in the tools dropdown
+            const dropdownGroupButton = document.querySelector('#tools-dropdown ~ .dropdown-menu .dropdown-item[data-tool="group"]');
+            const dropdownUngroupButton = document.querySelector('#tools-dropdown ~ .dropdown-menu .dropdown-item[data-tool="ungroup"]');
+            
+            if (dropdownGroupButton && dropdownUngroupButton) {
+                dropdownGroupButton.classList.toggle('disabled', !(activeObject && activeObject.type === 'activeSelection'));
+                dropdownUngroupButton.classList.toggle('disabled', !(activeObject && activeObject.type === 'group'));
             }
         };
 
