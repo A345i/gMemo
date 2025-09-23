@@ -93,8 +93,10 @@ document.addEventListener('DOMContentLoaded', () => {
         let startX, startY;
         let voiceInputPosition = null; // Для хранения координат клика для голосового ввода
         let isGridVisible = false;
-        const gridSpacing = 50; // Расстояние между линиями сетки в пикселях
+        const gridSpacing = 50; // Расстояние между линиями сетки в пиксел��х
         const gridColor = '#e0e0e0';
+        let realtimeChannel = null; // Для хранения подписки Realtime
+        let sessionId = null; // --- NEW: Unique ID for this tab/session ---
 
         // --- Voice Recognition Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -195,7 +197,8 @@ document.addEventListener('DOMContentLoaded', () => {
                         fontSize: 24,
                         fontFamily: 'Arial',
                         originX: 'center',
-                        originY: 'center'
+                        originY: 'center',
+                        uuid: crypto.randomUUID() // --- NEW: Assign UUID ---
                     });
                     fabricCanvas.add(textObject);
                     fabricCanvas.setActiveObject(textObject);
@@ -311,10 +314,65 @@ document.addEventListener('DOMContentLoaded', () => {
         logoutButton.addEventListener('click', async () => { 
             showLoader(); 
             await saveNotesToSupabase(); 
+            if (realtimeChannel) {
+                supabaseClient.removeChannel(realtimeChannel);
+                realtimeChannel = null;
+            }
             await supabaseClient.auth.signOut(); 
         });
 
         // --- Supabase Data Functions ---
+        const setupRealtimeSubscription = () => {
+            // Clean up any existing channel before creating a new one
+            if (realtimeChannel) {
+                supabaseClient.removeChannel(realtimeChannel);
+                realtimeChannel = null;
+            }
+
+            if (!currentUser) return;
+
+            realtimeChannel = supabaseClient.channel(`profiles:id=eq.${currentUser.id}`)
+                .on('postgres_changes', { 
+                    event: 'UPDATE', 
+                    schema: 'public', 
+                    table: 'profiles', 
+                    filter: `id=eq.${currentUser.id}` 
+                }, 
+                (payload) => {
+                    try {
+                        const incomingData = JSON.parse(payload.new.profile_text);
+
+                        // --- ROBUST SYNC LOGIC ---
+                        // 1. If the update has no session ID, or it's from us, ignore it.
+                        if (!incomingData.lastUpdatedBy || incomingData.lastUpdatedBy === sessionId) {
+                            return;
+                        }
+
+                        console.log('Realtime update received from another session:', payload);
+
+                        // 2. The data has changed externally. Update our master `pages` array.
+                        if (Array.isArray(incomingData.pages)) {
+                            pages = incomingData.pages;
+                        }
+
+                        // 3. Force a reload of the current page to show the latest data.
+                        // This ensures consistency across all clients.
+                        loadPage(currentPageIndex);
+
+                    } catch (e) {
+                        console.error("Error processing realtime update:", e);
+                    }
+                })
+                .subscribe((status, err) => {
+                    if (status === 'SUBSCRIBED') {
+                        console.log('Successfully subscribed to Realtime channel!');
+                    }
+                    if (status === 'CHANNEL_ERROR') {
+                        console.error('Realtime subscription error:', err);
+                    }
+                });
+        };
+
         const loadNotesFromSupabase = async () => {
             dataLoaded = false;
             const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
@@ -359,7 +417,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Save both pages and current page index in a single object
             const saveData = {
                 pages: pages,
-                currentPageIndex: currentPageIndex
+                currentPageIndex: currentPageIndex,
+                lastUpdatedBy: sessionId // --- NEW: Tag the save with our session ID ---
             };
             const notesJson = JSON.stringify(saveData);
             const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
@@ -386,10 +445,15 @@ document.addEventListener('DOMContentLoaded', () => {
             appContainer.classList.remove('d-none');
             resizeCanvas();
             setActiveTool(null); // Ensure no tool is active on load
+            setupRealtimeSubscription(); // --- NEW: Start listening for changes ---
             hideLoader();
         };
 
         const setupLoginPage = () => {
+            if (realtimeChannel) {
+                supabaseClient.removeChannel(realtimeChannel);
+                realtimeChannel = null;
+            }
             currentUser = null;
             authContainer.classList.remove('d-none');
             appContainer.classList.add('d-none');
@@ -400,6 +464,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const initializeApp = async () => {
+            sessionId = crypto.randomUUID(); // --- NEW: Assign a unique ID for this session ---
             showLoader();
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) { console.error("Error getting session:", error); setupLoginPage(); return; }
@@ -419,7 +484,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saveIndicator.classList.remove('saved');
             saveIndicator.classList.add('unsaved');
             redoStack = []; 
-            const state = fabricCanvas.toJSON(['isLink', 'url']);
+            const state = fabricCanvas.toJSON(['isLink', 'url', 'uuid']); // --- MODIFIED: Include uuid
             state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
             history.push(state); 
             updateHistoryButtons(); 
@@ -525,7 +590,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.setCursor('grabbing');
             } else if (!isTouching && currentTool === 'text' && !opt.target) {
                 const pointer = fabricCanvas.getPointer(opt.e);
-                const text = new fabric.IText('Текст', { left: pointer.x, top: pointer.y, fill: colorPickers[0].value, fontSize: 24, fontFamily: 'Arial', originX: 'center', originY: 'center' });
+                const text = new fabric.IText('Текст', { 
+                    left: pointer.x, 
+                    top: pointer.y, 
+                    fill: colorPickers[0].value, 
+                    fontSize: 24, 
+                    fontFamily: 'Arial', 
+                    originX: 'center', 
+                    originY: 'center',
+                    uuid: crypto.randomUUID() // --- NEW: Assign UUID ---
+                });
                 fabricCanvas.add(text);
                 fabricCanvas.setActiveObject(text);
                 text.enterEditing();
@@ -555,16 +629,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 switch (currentTool) {
                     case 'line':
-                        shapeInProgress = new fabric.Line([startX, startY, startX, startY], { stroke: color, strokeWidth: width });
+                        shapeInProgress = new fabric.Line([startX, startY, startX, startY], { stroke: color, strokeWidth: width, uuid: crypto.randomUUID() });
                         break;
                     case 'arrow':
                         shapeInProgress = createArrow(startX, startY, startX, startY, color, width);
+                        shapeInProgress.uuid = crypto.randomUUID(); // Assign UUID to the group
                         break;
                     case 'rect':
-                        shapeInProgress = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: 'transparent', stroke: color, strokeWidth: width });
+                        shapeInProgress = new fabric.Rect({ left: startX, top: startY, width: 0, height: 0, fill: 'transparent', stroke: color, strokeWidth: width, uuid: crypto.randomUUID() });
                         break;
                     case 'circle':
-                        shapeInProgress = new fabric.Ellipse({ left: startX, top: startY, rx: 0, ry: 0, fill: 'transparent', stroke: color, strokeWidth: width });
+                        shapeInProgress = new fabric.Ellipse({ left: startX, top: startY, rx: 0, ry: 0, fill: 'transparent', stroke: color, strokeWidth: width, uuid: crypto.randomUUID() });
                         break;
                 }
                 if (shapeInProgress) {
@@ -749,7 +824,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const resetHistory = (initialState = null) => {
-            const state = initialState || fabricCanvas.toJSON(['isLink', 'url']);
+            const state = initialState || fabricCanvas.toJSON(['isLink', 'url', 'uuid']); // --- MODIFIED: Include uuid
             if (!state.viewportTransform) {
                 state.viewportTransform = [1, 0, 0, 1, 0, 0];
             }
@@ -846,7 +921,7 @@ document.addEventListener('DOMContentLoaded', () => {
         historyButtons.grid.addEventListener('click', toggleGrid);
 
         const saveCurrentPage = () => {
-            const pageData = fabricCanvas.toJSON(['isLink', 'url']);
+            const pageData = fabricCanvas.toJSON(['isLink', 'url', 'uuid']); // --- MODIFIED: Include uuid
             pageData.viewportTransform = fabricCanvas.viewportTransform;
             pages[currentPageIndex] = pageData;
         };
@@ -978,10 +1053,15 @@ document.addEventListener('DOMContentLoaded', () => {
                                 evented: true, // Make sure clone is interactive
                             });
                             if (cloned.type === 'activeSelection') {
+                                // active selection needs a reference to the canvas.
                                 cloned.canvas = fabricCanvas;
-                                cloned.forEachObject(obj => fabricCanvas.add(obj));
+                                cloned.forEachObject(obj => {
+                                    obj.uuid = crypto.randomUUID(); // --- NEW: Assign new UUID to each copied object
+                                    fabricCanvas.add(obj);
+                                });
                                 cloned.setCoords();
                             } else {
+                                cloned.uuid = crypto.randomUUID(); // --- NEW: Assign new UUID to the copied object
                                 fabricCanvas.add(cloned);
                             }
                             fabricCanvas.setActiveObject(cloned);
@@ -992,7 +1072,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!url) return;
                         const text = prompt("Введите текст для ссылки:", "Моя ссылка");
                         if (!text) return;
-                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url });
+                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url, uuid: crypto.randomUUID() });
                         fabricCanvas.add(linkText);
                     } else {
                         // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
@@ -1022,10 +1102,18 @@ document.addEventListener('DOMContentLoaded', () => {
         widthIncreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width + 1));
         widthDecreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width - 1));
 
-        imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
+        imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); img.uuid = crypto.randomUUID(); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
         window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
         
         fabricCanvas.on({ 'object:added': saveState, 'object:removed': saveState, 'object:modified': saveState });
+
+        // --- NEW: Assign UUID to newly created paths from free drawing ---
+        fabricCanvas.on('path:created', function(e) {
+            if (e.path) {
+                e.path.uuid = crypto.randomUUID();
+            }
+        });
+
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
 
         // --- Page Navigation with IMMEDIATE save ---
