@@ -1027,6 +1027,32 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.removeChild(link);
         }
 
+        const groupButton = document.getElementById('group-button');
+        const ungroupButton = document.getElementById('ungroup-button');
+        const mobileGroupButton = document.getElementById('mobile-group-button');
+        const mobileUngroupButton = document.getElementById('mobile-ungroup-button');
+
+        // Function to handle group functionality
+        const handleGroup = () => {
+            const activeSelection = fabricCanvas.getActiveObject();
+            if (activeSelection && activeSelection.type === 'activeSelection') {
+                const group = activeSelection.toGroup();
+                group.uuid = crypto.randomUUID(); // Assign UUID to the new group
+                fabricCanvas.renderAll();
+                saveState(); // Save state after grouping
+            }
+        };
+
+        // Function to handle ungroup functionality
+        const handleUngroup = () => {
+            const activeGroup = fabricCanvas.getActiveObject();
+            if (activeGroup && activeGroup.type === 'group') {
+                activeGroup.toActiveSelection();
+                fabricCanvas.renderAll();
+                saveState(); // Save state after ungrouping
+            }
+        };
+
         toolButtons.forEach(btn => {
             btn.addEventListener('click', (e) => {
                 const tool = e.currentTarget.dataset.tool;
@@ -1034,6 +1060,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (tool === 'delete') {
                         fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
                         fabricCanvas.discardActiveObject().renderAll();
+                        saveState(); // Save state after deletion
+                    } else if (tool === 'group') {
+                        handleGroup();
+                    } else if (tool === 'ungroup') {
+                        handleUngroup();
                     } else if (tool === 'copy') {
                         const activeObject = fabricCanvas.getActiveObject();
                         if (!activeObject) return;
@@ -1059,6 +1090,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             }
                             fabricCanvas.setActiveObject(cloned);
                             fabricCanvas.requestRenderAll();
+                            saveState(); // Save state after copying
                         });
                     } else if (tool === 'link') {
                         const url = prompt("Введите URL ссылки:", "https://");
@@ -1067,6 +1099,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (!text) return;
                         const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url, uuid: crypto.randomUUID() });
                         fabricCanvas.add(linkText);
+                        saveState(); // Save state after adding link
                     } else {
                         // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
                         if (tool === currentTool) {
@@ -1078,6 +1111,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             });
         });
+
+        // Add event listeners for mobile group/ungroup buttons
+        if (mobileGroupButton) {
+            mobileGroupButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleGroup();
+            });
+        }
+
+        if (mobileUngroupButton) {
+            mobileUngroupButton.addEventListener('click', (e) => {
+                e.preventDefault();
+                handleUngroup();
+            });
+        }
 
         colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; colorPickers.forEach(p => p.value = newColor); updateBrushSettings(); }); });
         
@@ -1105,6 +1153,26 @@ document.addEventListener('DOMContentLoaded', () => {
             if (e.path) {
                 e.path.uuid = crypto.randomUUID();
             }
+        });
+
+        // --- NEW: Logic to enable/disable group/ungroup buttons ---
+        const updateGroupButtons = () => {
+            const activeObject = fabricCanvas.getActiveObject();
+            if (groupButton && ungroupButton) {
+                groupButton.disabled = !(activeObject && activeObject.type === 'activeSelection');
+                ungroupButton.disabled = !(activeObject && activeObject.type === 'group');
+            }
+            // Also update mobile buttons if they exist
+            if (mobileGroupButton && mobileUngroupButton) {
+                mobileGroupButton.disabled = !(activeObject && activeObject.type === 'activeSelection');
+                mobileUngroupButton.disabled = !(activeObject && activeObject.type === 'group');
+            }
+        };
+
+        fabricCanvas.on({
+            'selection:created': updateGroupButtons,
+            'selection:updated': updateGroupButtons,
+            'selection:cleared': updateGroupButtons
         });
 
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
