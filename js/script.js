@@ -339,23 +339,28 @@ document.addEventListener('DOMContentLoaded', () => {
                     filter: `id=eq.${currentUser.id}` 
                 }, 
                 (payload) => {
-                    // --- NEW, MORE ROBUST SYNC LOGIC ---
-                    // The user's Supabase project sends notifications without data.
-                    // So, we treat the notification as a simple "ping" to refetch the data.
-
-                    // First, check if this client is in the middle of saving.
-                    // If so, ignore the incoming ping because it's likely an echo of our own change.
-                    if (saveIndicator.classList.contains('unsaved')) {
-                        console.log("Ignoring incoming update to prevent conflict with local pending save.");
+            // --- NEW: Robust sync logic to prevent echo ---
+            try {
+                // Attempt to parse the incoming data to check who made the change.
+                if (payload.new && payload.new.profile_text) {
+                    const updatedData = JSON.parse(payload.new.profile_text);
+                    // If the change was made by this browser session, ignore it.
+                    if (updatedData.lastUpdatedBy === sessionId) {
+                        console.log('Ignoring own update (echo).');
                         return;
                     }
+                }
+            } catch (e) {
+                // If parsing fails, log the error but still reload to be safe.
+                console.error('Error parsing realtime payload, reloading as a fallback:', e);
+                loadNotesFromSupabase();
+                return;
+            }
 
-                    console.log('Realtime "ping" received from another session. Refetching data.');
-                    
-                    // Fetch the latest data from the database directly.
-                    // This is guaranteed to work and get the most recent version.
-                    loadNotesFromSupabase();
-                })
+            // If the change is from another session, load the new data.
+            console.log('Change detected from another session. Loading new data.');
+            loadNotesFromSupabase();
+        })
                 .subscribe((status, err) => {
                     if (status === 'SUBSCRIBED') {
                         console.log('Successfully subscribed to Realtime channel!');
