@@ -102,17 +102,16 @@
                         <li class="nav-item">
                             <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
                         </li>
-                        <li class="nav-item ms-2 border-start ps-2">
-                            <button data-tool="line" class="btn btn-light" title="Линия"><i class="bi bi-slash-lg"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="arrow" class="btn btn-light" title="Стрелка"><i class="bi bi-arrow-right"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="rect" class="btn btn-light" title="Прямоугольник"><i class="bi bi-square"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="circle" class="btn btn-light" title="Круг"><i class="bi bi-circle"></i></button>
+                        <li class="nav-item ms-2 border-start ps-2 dropdown">
+                            <button class="btn btn-light dropdown-toggle" type="button" id="shapes-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Фигуры">
+                                <i class="bi bi-pentagon"></i>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="shapes-dropdown">
+                                <li><button data-tool="line" class="dropdown-item" title="Линия"><i class="bi bi-slash-lg"></i> Линия</button></li>
+                                <li><button data-tool="arrow" class="dropdown-item" title="Стрелка"><i class="bi bi-arrow-right"></i> Стрелка</button></li>
+                                <li><button data-tool="rect" class="dropdown-item" title="Прямоугольник"><i class="bi bi-square"></i> Прямоугольник</button></li>
+                                <li><button data-tool="circle" class="dropdown-item" title="Круг"><i class="bi bi-circle"></i> Круг</button></li>
+                            </ul>
                         </li>
                         <li class="nav-item ms-2 border-start ps-2">
                             <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
