@@ -16,6 +16,15 @@ body {
 /* Canvas Element */
 #canvas {
     background-color: #fff; /* White canvas background */
+    transition: opacity 0.3s ease-in-out;
+}
+
+#canvas.fade-out {
+    opacity: 0.5;
+}
+
+#canvas.fade-in {
+    opacity: 1;
 }
 
 /* Top Navbar Customization */
