@@ -970,6 +970,13 @@ document.addEventListener('DOMContentLoaded', () => {
             toolButtons.forEach(btn => {
                 btn.classList.toggle('active', btn.dataset.tool === tool);
             });
+            
+            // Handle shapes dropdown button state
+            const shapesDropdownBtn = document.getElementById('shapes-dropdown');
+            if (shapesDropdownBtn) {
+                shapesDropdownBtn.classList.toggle('active', isShapeTool);
+            }
+            
             if (mobileShapesToggle) {
                 mobileShapesToggle.classList.toggle('active', isShapeTool);
             }
