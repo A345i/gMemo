@@ -232,6 +232,27 @@ document.addEventListener('DOMContentLoaded', () => {
             setTimeout(resizeCanvas, 210);
         });
 
+        // --- Desktop Shapes Dropdown Logic ---
+        const shapesDropdown = document.getElementById('shapes-dropdown');
+        if (shapesDropdown) {
+            // Add event listeners to all shape buttons in the dropdown
+            const shapeButtons = document.querySelectorAll('.dropdown-item[data-tool]');
+            shapeButtons.forEach(button => {
+                button.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const tool = button.dataset.tool;
+                    if (tool) {
+                        // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
+                        if (tool === currentTool) {
+                            setActiveTool(null);
+                        } else {
+                            setActiveTool(tool);
+                        }
+                    }
+                });
+            });
+        }
+
         mobileActionsToggle.addEventListener('click', () => {
             const willBeActive = !mobileActionsOptions.classList.contains('active');
 
@@ -1138,6 +1159,23 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleUngroup();
             });
         }
+
+        // Add event listeners for shape buttons in the dropdown
+        const shapeButtons = document.querySelectorAll('.dropdown-item[data-tool]');
+        shapeButtons.forEach(button => {
+            button.addEventListener('click', (e) => {
+                e.preventDefault();
+                const tool = button.dataset.tool;
+                if (tool) {
+                    // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
+                    if (tool === currentTool) {
+                        setActiveTool(null);
+                    } else {
+                        setActiveTool(tool);
+                    }
+                }
+            });
+        });
 
         colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; colorPickers.forEach(p => p.value = newColor); updateBrushSettings(); }); });
         
