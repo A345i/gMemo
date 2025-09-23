@@ -7,7 +7,7 @@ if ('serviceWorker' in navigator) {
       swPath = './sw.js';
     } else {
       // For GitHub Pages (and other web servers)
-      swPath = '/gMemo/sw.js';
+      swPath = './sw.js';
     }
     
     navigator.serviceWorker.register(swPath).then(registration => {
@@ -19,6 +19,12 @@ if ('serviceWorker' in navigator) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize Bootstrap dropdowns
+    const dropdownElementList = [].slice.call(document.querySelectorAll('.dropdown-toggle'));
+    dropdownElementList.map(function (dropdownToggleEl) {
+        return new bootstrap.Dropdown(dropdownToggleEl);
+    });
+    
     try {
         // --- Supabase Setup ---
         const SUPABASE_URL = 'https://mrwzsslileqnamzztrfc.supabase.co';
@@ -1167,6 +1173,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 e.preventDefault();
                 const tool = button.dataset.tool;
                 if (tool) {
+                    // Close the dropdown after selecting a tool
+                    const dropdown = bootstrap.Dropdown.getInstance(button.closest('.dropdown'));
+                    if (dropdown) {
+                        dropdown.hide();
+                    }
+                    
                     // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
                     if (tool === currentTool) {
                         setActiveTool(null);
