@@ -127,6 +127,12 @@
                         <li class="nav-item">
                             <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
                         </li>
+                        <li class="nav-item ms-2 border-start ps-2">
+                            <button id="group-button" data-tool="group" class="btn btn-light" title="Группировать" disabled><i class="bi bi-collection"></i></button>
+                        </li>
+                        <li class="nav-item">
+                            <button id="ungroup-button" data-tool="ungroup" class="btn btn-light" title="Разгруппировать" disabled><i class="bi bi-grid-1x2"></i></button>
+                        </li>
                         <li class="nav-item">
                             <button data-tool="copy" class="btn btn-light" title="Копировать выбранное"><i class="bi bi-files"></i></button>
                         </li>
@@ -192,6 +198,7 @@
             <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
             <button data-tool="marker" class="btn btn-light" title="Маркер"><i class="bi bi-highlighter"></i></button>
             <button id="mobile-shapes-toggle" class="btn btn-light" title="Фигуры"><i class="bi bi-pentagon"></i></button>
+            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
             <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
             <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
             <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
@@ -221,9 +228,10 @@
         <div id="mobile-actions-options" class="d-lg-none">
             <button id="mobile-undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
             <button id="mobile-redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
+            <button id="mobile-group-button" data-tool="group" class="btn btn-light" title="Группировать" disabled><i class="bi bi-collection"></i></button>
+            <button id="mobile-ungroup-button" data-tool="ungroup" class="btn btn-light" title="Разгруппировать" disabled><i class="bi bi-grid-1x2"></i></button>
             <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
             <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
-            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
             <button data-tool="copy" class="btn btn-light" title="Копировать"><i class="bi bi-files"></i></button>
             <button data-tool="delete" class="btn btn-light text-danger" title="Удалить"><i class="bi bi-trash-fill"></i></button>
         </div>
@@ -243,13 +251,13 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <p class="text-muted">Нажмите и удерживайте микрофон для записи</p>
+                    <div class="form-group mb-3">
+                        <textarea id="voice-text-result" class="form-control" rows="4" placeholder="Распознанный текст..."></textarea>
+                    </div>
+                    <p class="text-muted small">Нажмите и удерживайте микрофон для записи</p>
                     <button type="button" class="btn btn-primary btn-lg rounded-circle my-3" id="voice-record-button" style="width: 80px; height: 80px;">
                         <i class="bi bi-mic-fill fs-2"></i>
                     </button>
-                    <div class="form-group mt-2">
-                        <textarea id="voice-text-result" class="form-control" rows="4" placeholder="Распознанный текст..."></textarea>
-                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Отмена</button>
