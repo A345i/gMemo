@@ -21,46 +21,80 @@ body {
 /* Top Navbar Customization */
 .navbar-brand {
     letter-spacing: -0.5px;
+    font-size: 1.1rem;
 }
+
+.navbar-nav .nav-item {
+    margin-right: 0.25rem;
+}
+
 #page-indicator {
-    min-width: 80px;
+    min-width: 60px;
     text-align: center;
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: #6c757d;
 }
+
 .form-control-color {
-    min-width: 38px;
-    padding: 0.15rem;
+    min-width: 32px;
+    padding: 0.1rem;
     border-radius: 0.2rem;
+    height: 30px;
 }
+
 .form-range {
-    min-width: 80px;
+    min-width: 60px;
 }
+
 .navbar .btn {
     transition: background-color 0.15s ease-in-out;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.9rem;
 }
+
 .navbar .btn.active {
     background-color: #0d6efd;
     color: white;
 }
+
 .navbar .btn.active .bi {
     color: white;
+}
+
+/* Reduce spacing around color picker */
+.navbar .form-label {
+    margin-bottom: 0;
+    font-size: 0.8rem;
+}
+
+/* Reduce slider value text size */
+#line-width-value-desktop {
+    font-size: 0.8rem;
+    min-width: 20px;
 }
 
 /* Dropdown menu styles */
 .dropdown-menu {
     z-index: 1050;
+    font-size: 0.9rem;
 }
 
 .dropdown-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    padding: 0.3rem 0.75rem;
 }
 
 .dropdown-item .bi {
     width: 1.2rem;
     text-align: center;
+}
+
+.dropdown-toggle::after {
+    margin-left: 0.25rem;
+    font-size: 0.7rem;
+    vertical-align: 0.15rem;
 }
 
 /* Save Indicator */
