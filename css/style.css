@@ -47,6 +47,22 @@ body {
     color: white;
 }
 
+/* Dropdown menu styles */
+.dropdown-menu {
+    z-index: 1050;
+}
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.dropdown-item .bi {
+    width: 1.2rem;
+    text-align: center;
+}
+
 /* Save Indicator */
 .save-indicator {
     display: inline-block;
