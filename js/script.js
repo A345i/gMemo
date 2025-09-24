@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const appContainer = document.getElementById('app-container');
         const userEmailDisplay = document.getElementById('user-email-display');
         const logoutButton = document.getElementById('logout-button');
+        const showLoginButton = document.getElementById('show-login-button');
+        const offlineButton = document.getElementById('offline-button');
         const saveIndicator = document.getElementById('save-indicator');
         const canvasContainer = document.getElementById('canvas-container');
         const canvasElement = document.getElementById('canvas');
@@ -366,6 +368,50 @@ document.addEventListener('DOMContentLoaded', () => {
             await supabaseClient.auth.signOut(); 
         });
 
+        // --- Local Storage Data Functions ---
+        const saveNotesLocally = () => {
+            if (currentUser) return; // Don't save locally if logged in
+            saveCurrentPage();
+            const saveData = {
+                pages: pages,
+                currentPageIndex: currentPageIndex,
+            };
+            localStorage.setItem('gmemo-local-data', JSON.stringify(saveData));
+            saveIndicator.classList.remove('unsaved');
+            saveIndicator.classList.add('saved');
+            setTimeout(() => {
+                saveIndicator.classList.remove('saved');
+            }, 1500);
+        };
+
+        const loadNotesLocally = () => {
+            const localData = localStorage.getItem('gmemo-local-data');
+            if (localData) {
+                try {
+                    const savedData = JSON.parse(localData);
+                    if (savedData && typeof savedData === 'object') {
+                        if (Array.isArray(savedData.pages)) {
+                            pages = savedData.pages;
+                        }
+                        const savedCurrentPageIndex = savedData.currentPageIndex || 0;
+                        if (savedCurrentPageIndex >= pages.length) {
+                            loadPage(Math.max(0, pages.length - 1));
+                        } else {
+                            loadPage(savedCurrentPageIndex);
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error parsing local notes JSON:', e);
+                    loadPage(0); // Load a fresh page if local data is corrupt
+                }
+            } else {
+                loadPage(0); // Load a fresh page if no local data
+            }
+            dataLoaded = true;
+        };
+
+        const debouncedSaveLocal = _.debounce(saveNotesLocally, 2000);
+
         // --- Supabase Data Functions ---
         const setupRealtimeSubscription = () => {
             // Clean up any existing channel before creating a new one
@@ -480,15 +526,53 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- NEW, ROBUST AUTH HANDLING ---
         const setupAuthenticatedApp = async (session) => {
-            if (currentUser && dataLoaded) { return; } // Prevent re-initialization on token refresh
+            // Prevent re-initialization on token refresh
+            if (currentUser && dataLoaded) { return; } 
+
+            const localDataExists = localStorage.getItem('gmemo-local-data');
+            if (localDataExists) {
+                if (!confirm("Вы входите в аккаунт. Ваши локальные несохраненные данные будут заменены данными из облака. Продолжить?")) {
+                    // User cancelled login
+                    await supabaseClient.auth.signOut(); // Sign out to prevent being stuck in a weird state
+                    setupLocalApp(); // Go back to local app
+                    return;
+                }
+                localStorage.removeItem('gmemo-local-data'); // Clear local data after confirmation
+            }
+
             currentUser = session.user;
             await loadNotesFromSupabase();
+            
+            // UI Updates for authenticated state
             userEmailDisplay.textContent = currentUser.email;
+            logoutButton.classList.remove('d-none');
+            showLoginButton.classList.add('d-none');
+            
             authContainer.classList.add('d-none');
             appContainer.classList.remove('d-none');
+            
             resizeCanvas();
             setActiveTool(null); // Ensure no tool is active on load
-            setupRealtimeSubscription(); // --- NEW: Start listening for changes ---
+            setupRealtimeSubscription(); 
+            hideLoader();
+        };
+
+        const setupLocalApp = () => {
+            currentUser = null;
+            dataLoaded = false; // Reset data loaded flag for local mode
+            
+            loadNotesLocally();
+
+            // UI Updates for local state
+            userEmailDisplay.textContent = "Оффлайн";
+            logoutButton.classList.add('d-none');
+            showLoginButton.classList.remove('d-none');
+
+            authContainer.classList.add('d-none');
+            appContainer.classList.remove('d-none');
+            
+            resizeCanvas();
+            setActiveTool(null);
             hideLoader();
         };
 
@@ -507,19 +591,36 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const initializeApp = async () => {
-            sessionId = crypto.randomUUID(); // --- NEW: Assign a unique ID for this session ---
+            sessionId = crypto.randomUUID(); 
             showLoader();
             const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error) { console.error("Error getting session:", error); setupLoginPage(); return; }
-            if (session) { await setupAuthenticatedApp(session); } else { setupLoginPage(); }
+            if (error) { 
+                console.error("Error getting session:", error); 
+                setupLocalApp(); // If error, default to local mode
+                return; 
+            }
+            if (session) { 
+                await setupAuthenticatedApp(session); 
+            } else { 
+                setupLoginPage(); // Show login page first
+            }
         };
 
         supabaseClient.auth.onAuthStateChange((event, session) => {
-            if (event === 'SIGNED_IN') { setupAuthenticatedApp(session); } 
-            else if (event === 'SIGNED_OUT') { setupLoginPage(); }
+            if (event === 'SIGNED_IN') { 
+                setupAuthenticatedApp(session); 
+            } else if (event === 'SIGNED_OUT') { 
+                // On sign out, clear any local data and go to the login page
+                localStorage.removeItem('gmemo-local-data');
+                setupLoginPage(); 
+            }
         });
 
         initializeApp();
+
+        // --- Event Listeners for new buttons ---
+        offlineButton.addEventListener('click', setupLocalApp);
+        showLoginButton.addEventListener('click', setupLoginPage);
 
         // --- Canvas & App Logic ---
         const saveState = () => { 
@@ -531,7 +632,11 @@ document.addEventListener('DOMContentLoaded', () => {
             state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
             history.push(state); 
             updateHistoryButtons(); 
-            debouncedSave(); 
+            if (currentUser) {
+                debouncedSave(); 
+            } else {
+                debouncedSaveLocal();
+            }
         };
         
         const loadPage = (pageIndex) => {
@@ -1385,7 +1490,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveCurrentPage(); // Save canvas of the page we are leaving
                 const newPageIndex = currentPageIndex - 1;
                 loadPage(newPageIndex); // Update local state and currentPageIndex
-                await saveNotesToSupabase(); // Save the new state with the correct index
+                if (currentUser) {
+                    await saveNotesToSupabase(); // Save the new state with the correct index
+                } else {
+                    saveNotesLocally();
+                }
                 hideLoader();
             }
         });
@@ -1395,7 +1504,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveCurrentPage(); // Save canvas of the page we are leaving
                 const newPageIndex = currentPageIndex + 1;
                 loadPage(newPageIndex); // Update local state and currentPageIndex
-                await saveNotesToSupabase(); // Save the new state with the correct index
+                if (currentUser) {
+                    await saveNotesToSupabase();
+                } else {
+                    saveNotesLocally();
+                }
                 hideLoader();
             }
         });
@@ -1405,7 +1518,11 @@ document.addEventListener('DOMContentLoaded', () => {
             pages.push(null);
             const newPageIndex = pages.length - 1;
             loadPage(newPageIndex); // Update local state and currentPageIndex
-            await saveNotesToSupabase(); // Save the new state with the correct index
+            if (currentUser) {
+                await saveNotesToSupabase();
+            } else {
+                saveNotesLocally();
+            }
             hideLoader();
         });
         pageControls.delete.addEventListener('click', async () => {
@@ -1422,7 +1539,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     newPageIndex = pages.length - 1;
                 }
                 loadPage(newPageIndex); // Update local state and currentPageIndex
-                await saveNotesToSupabase(); // Save the new state with the correct index
+                if (currentUser) {
+                    await saveNotesToSupabase();
+                } else {
+                    saveNotesLocally();
+                }
                 hideLoader();
             }
         });
