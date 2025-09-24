@@ -21,80 +21,46 @@ body {
 /* Top Navbar Customization */
 .navbar-brand {
     letter-spacing: -0.5px;
-    font-size: 1.1rem;
 }
-
-.navbar-nav .nav-item {
-    margin-right: 0.25rem;
-}
-
 #page-indicator {
-    min-width: 60px;
+    min-width: 80px;
     text-align: center;
-    font-size: 0.8rem;
+    font-size: 0.9rem;
     color: #6c757d;
 }
-
 .form-control-color {
-    min-width: 32px;
-    padding: 0.1rem;
+    min-width: 38px;
+    padding: 0.15rem;
     border-radius: 0.2rem;
-    height: 30px;
 }
-
 .form-range {
-    min-width: 60px;
+    min-width: 80px;
 }
-
 .navbar .btn {
     transition: background-color 0.15s ease-in-out;
-    padding: 0.25rem 0.5rem;
-    font-size: 0.9rem;
 }
-
 .navbar .btn.active {
     background-color: #0d6efd;
     color: white;
 }
-
 .navbar .btn.active .bi {
     color: white;
-}
-
-/* Reduce spacing around color picker */
-.navbar .form-label {
-    margin-bottom: 0;
-    font-size: 0.8rem;
-}
-
-/* Reduce slider value text size */
-#line-width-value-desktop {
-    font-size: 0.8rem;
-    min-width: 20px;
 }
 
 /* Dropdown menu styles */
 .dropdown-menu {
     z-index: 1050;
-    font-size: 0.9rem;
 }
 
 .dropdown-item {
     display: flex;
     align-items: center;
     gap: 0.5rem;
-    padding: 0.3rem 0.75rem;
 }
 
 .dropdown-item .bi {
     width: 1.2rem;
     text-align: center;
-}
-
-.dropdown-toggle::after {
-    margin-left: 0.25rem;
-    font-size: 0.7rem;
-    vertical-align: 0.15rem;
 }
 
 /* Save Indicator */
@@ -143,12 +109,16 @@ body {
 }
 
 #mobile-draw-options, #mobile-shapes-options, #mobile-actions-options {
-    height: 50px;
+    height: auto; /* Auto height */
+    min-height: 50px; /* Minimum height */
+    padding: 8px;
     bottom: 60px; /* Position it above the main mobile toolbar */
     border-top: 1px solid #eee;
     border-bottom: 1px solid #dee2e6;
     box-shadow: none;
     display: none; /* Hidden by default */
+    flex-wrap: wrap; /* Allow wrapping */
+    gap: 8px; /* Add spacing */
 }
 
 #mobile-shapes-options, #mobile-actions-options {
@@ -196,7 +166,7 @@ body {
     body.shapes-options-active #canvas-container,
     body.actions-options-active #canvas-container {
          /* Adjust height when the drawing options are visible */
-        height: calc(100vh - 56px - 60px - 50px);
+        height: calc(100vh - 56px - 60px - 66px); /* Adjusted for new panel height */
     }
 }
 
