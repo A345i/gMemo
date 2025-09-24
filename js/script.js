@@ -829,7 +829,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (objects.length > 0) {
                             const pastedObject = objects[0];
                             
-                            // Assign new UUIDs to all objects being pasted
+                            // --- FIX: Assign new UUIDs to all objects being pasted ---
                             const assignNewUuids = (obj) => {
                                 obj.uuid = crypto.randomUUID();
                                 if (obj.forEachObject) {
@@ -856,7 +856,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }, 'fabric');
                 }
                 // Deactivate paste mode after pasting once
-                setActiveTool('select');
+                setActiveTool(null);
                 return;
             }
 
