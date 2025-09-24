@@ -358,14 +358,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         loginForm.addEventListener('submit', async (e) => { e.preventDefault(); hideError(); showLoader(); const email = document.getElementById('login-email').value; const password = document.getElementById('login-password').value; const { error } = await supabaseClient.auth.signInWithPassword({ email, password }); if (error) { showError(error.message); hideLoader(); } });
         registerForm.addEventListener('submit', async (e) => { e.preventDefault(); hideError(); showLoader(); const email = document.getElementById('register-email').value; const password = document.getElementById('register-password').value; const username = document.getElementById('register-username').value; const { error } = await supabaseClient.auth.signUp({ email, password, options: { data: { username: username } } }); hideLoader(); if (error) { showError(error.message); } else { alert('Регистрация успешна! Пожалуйста, подтвердите свой email.'); new bootstrap.Tab(document.getElementById('pills-login-tab')).show(); } });
-        logoutButton.addEventListener('click', async () => { 
-            showLoader(); 
-            await saveNotesToSupabase(); 
-            if (realtimeChannel) {
-                supabaseClient.removeChannel(realtimeChannel);
-                realtimeChannel = null;
+        logoutButton.addEventListener('click', async () => {
+            showLoader();
+            try {
+                // Save final changes before logging out.
+                await saveNotesToSupabase();
+
+                // Attempt to sign out and capture any potential error.
+                const { error } = await supabaseClient.auth.signOut();
+
+                // If there was an error during sign out, the 'SIGNED_OUT' event might not fire.
+                // We need to handle this case explicitly to avoid getting stuck.
+                if (error) {
+                    console.error('Error during sign out:', error);
+                    alert(`Не удалось выйти из системы: ${error.message}`);
+                    hideLoader(); // Manually hide the loader since the auth listener won't.
+                }
+                // If sign out is successful, the onAuthStateChange listener will trigger,
+                // which in turn calls setupLoginPage() to reset the UI and hide the loader.
+            } catch (err) {
+                console.error('Exception during logout process:', err);
+                alert('Произошла непредвиденная ошибка при выходе.');
+                hideLoader();
             }
-            await supabaseClient.auth.signOut(); 
         });
 
         // --- Local Storage Data Functions ---
