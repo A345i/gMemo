@@ -108,6 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let realtimeChannel = null; // Для хранения подписки Realtime
         let clientId = crypto.randomUUID(); // --- MODIFIED: Unique ID for this tab/session ---
         let isApplyingRemoteChange = false; // --- NEW: Flag to prevent broadcasting remote changes ---
+        let isLeader = false;
+        let heartbeatInterval = null;
+        const HEARTBEAT_INTERVAL_MS = 10000; // 10 seconds
 
         // --- Voice Recognition Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -363,6 +366,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Clean up the realtime channel before signing out.
                 if (realtimeChannel) {
+                    stopHeartbeat();
                     supabaseClient.removeChannel(realtimeChannel);
                     realtimeChannel = null;
                 }
@@ -431,9 +435,39 @@ document.addEventListener('DOMContentLoaded', () => {
         const debouncedSaveLocal = _.debounce(saveNotesLocally, 2000);
 
         // --- Supabase Data Functions ---
-        // --- NEW: Operation-based sync logic ---
+        const calculateChecksum = () => {
+            const objects = fabricCanvas.getObjects();
+            if (objects.length === 0) {
+                return 'empty';
+            }
+            // Sort by UUID to ensure consistent order
+            const sortedObjects = objects.sort((a, b) => (a.uuid || '').localeCompare(b.uuid || ''));
+            // Create a simple string representation of key properties
+            const repr = sortedObjects.map(o => {
+                return `${o.uuid}:${Math.round(o.left)}:${Math.round(o.top)}:${(o.scaleX || 1).toFixed(2)}:${(o.scaleY || 1).toFixed(2)}:${Math.round(o.angle || 0)}`;
+            }).join(';');
+            return repr;
+        };
+
+        const stopHeartbeat = () => {
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+                console.log('Stopped sending heartbeats.');
+            }
+        };
+
+        const startHeartbeat = () => {
+            stopHeartbeat(); // Ensure no multiple intervals are running
+            console.log('Became leader, starting heartbeats...');
+            heartbeatInterval = setInterval(() => {
+                const checksum = calculateChecksum();
+                broadcastOperation({ type: 'heartbeat', data: { checksum } });
+            }, HEARTBEAT_INTERVAL_MS);
+        };
+
         const broadcastOperation = (payload) => {
-            if (!realtimeChannel || isApplyingRemoteChange) {
+            if (!realtimeChannel || (isApplyingRemoteChange && !payload.type.startsWith('response:'))) {
                 return;
             }
             realtimeChannel.send({
@@ -448,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (payload.clientId === clientId) return;
 
             // If the operation is for a different page, ignore it for object manipulations
-            if (payload.pageIndex !== currentPageIndex && !payload.type.startsWith('page:')) {
+            if (payload.pageIndex !== currentPageIndex && !payload.type.startsWith('page:') && !payload.type.startsWith('response:')) {
                 return;
             }
 
@@ -499,15 +533,48 @@ document.addEventListener('DOMContentLoaded', () => {
                     case 'page:delete':
                         saveCurrentPage();
                         pages.splice(payload.data.deletedPageIndex, 1);
-                        // Only switch page if the deleted page was the active one
                         if (currentPageIndex === payload.data.deletedPageIndex) {
                              loadPage(payload.data.newPageIndex);
                         } else {
-                            // If another page was deleted, our index might need updating
                             if (currentPageIndex > payload.data.deletedPageIndex) {
                                 currentPageIndex--;
                             }
                             updatePageIndicator();
+                        }
+                        break;
+                    
+                    // State Reconciliation
+                    case 'heartbeat':
+                        if (!isLeader) {
+                            const localChecksum = calculateChecksum();
+                            if (localChecksum !== payload.data.checksum) {
+                                console.warn(`Checksum mismatch! Local: ${localChecksum.substring(0,50)}... Remote: ${payload.data.checksum.substring(0,50)}... Requesting full state.`);
+                                broadcastOperation({ type: 'request:full-state', data: { requesterId: clientId } });
+                            }
+                        }
+                        break;
+                    case 'request:full-state':
+                        if (isLeader) {
+                            console.log(`Received full state request from ${payload.data.requesterId}. Responding.`);
+                            const fullState = fabricCanvas.toJSON(['uuid']);
+                            broadcastOperation({
+                                type: 'response:full-state',
+                                data: {
+                                    requesterId: payload.data.requesterId,
+                                    fullState: fullState
+                                }
+                            });
+                        }
+                        break;
+                    case 'response:full-state':
+                        if (payload.data.requesterId === clientId) {
+                            console.log('Received full state from leader. Applying...');
+                            saveCurrentPage(); // Save current state to history before overwriting
+                            fabricCanvas.loadFromJSON(payload.data.fullState, () => {
+                                fabricCanvas.renderAll();
+                                resetHistory(payload.data.fullState);
+                                console.log('Successfully applied full state.');
+                            });
                         }
                         break;
                 }
@@ -520,32 +587,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const setupRealtimeSubscription = () => {
             if (realtimeChannel) {
+                stopHeartbeat();
                 supabaseClient.removeChannel(realtimeChannel);
                 realtimeChannel = null;
             }
             if (!currentUser) return;
 
-            // Use a unique channel for each user's notes
             const channelId = `notes-${currentUser.id}`;
             realtimeChannel = supabaseClient.channel(channelId, {
                 config: {
-                    broadcast: {
-                        self: false, // Don't receive our own broadcasts
-                    },
+                    broadcast: { self: false },
+                    presence: { key: clientId },
                 },
             });
+
+            const electLeader = () => {
+                try {
+                    const presenceState = realtimeChannel.presenceState();
+                    const clients = Object.values(presenceState).flat();
+                    if (clients.length === 0) return;
+
+                    // Find the client that joined first by sorting by their 'joined_at' meta field
+                    const sortedClients = clients.sort((a, b) => a.joined_at - b.joined_at);
+                    const newLeaderId = sortedClients[0].key;
+                    
+                    const wasLeader = isLeader;
+                    isLeader = (newLeaderId === clientId);
+
+                    console.log(`Presence updated. Clients: ${clients.length}. New leader: ${newLeaderId}. Am I leader? ${isLeader}`);
+
+                    if (isLeader && !wasLeader) {
+                        startHeartbeat();
+                    } else if (!isLeader && wasLeader) {
+                        stopHeartbeat();
+                    }
+                } catch (e) {
+                    console.error("Error electing leader:", e);
+                }
+            };
 
             realtimeChannel
                 .on('broadcast', { event: 'canvas-operation' }, ({ payload }) => {
                     handleIncomingOperation(payload);
                 })
+                .on('presence', { event: 'sync' }, electLeader)
+                .on('presence', { event: 'join' }, electLeader)
+                .on('presence', { event: 'leave' }, electLeader)
                 .subscribe((status, err) => {
                     if (status === 'SUBSCRIBED') {
                         console.log(`Successfully subscribed to Realtime channel: ${channelId}`);
+                        realtimeChannel.track({ key: clientId, joined_at: Date.now() });
                     }
                     if (status === 'CHANNEL_ERROR') {
                         console.error('Realtime subscription error:', err);
-                        // Maybe try to resubscribe after a delay
                     }
                 });
         };
@@ -593,7 +687,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
             if (error) {
                 console.error('Error saving to Supabase:', error);
-            } else {
+            }
+            else {
                 saveIndicator.classList.remove('unsaved');
                 saveIndicator.classList.add('saved');
                 setTimeout(() => {
