@@ -1360,57 +1360,91 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        toolButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const tool = e.currentTarget.dataset.tool;
-                if (tool) {
-                    if (tool === 'delete') {
-                        fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
-                        fabricCanvas.discardActiveObject().renderAll();
-                        saveState(); // Save state after deletion
-                    } else if (tool === 'group') {
-                        handleGroup();
-                    } else if (tool === 'ungroup') {
-                        handleUngroup();
-                    } else if (tool === 'copy') {
-                        const activeObject = fabricCanvas.getActiveObject();
-                        if (activeObject) {
-                            activeObject.clone(function(cloned) {
-                                const serialized = cloned.toJSON(['isLink', 'url', 'uuid']);
-                                localStorage.setItem('gmemoClipboard', JSON.stringify(serialized));
-                                // Optional: provide user feedback
-                                alert('Скопировано в буфер обмена!');
-                            });
-                        }
-                    } else if (tool === 'paste') {
-                        if (localStorage.getItem('gmemoClipboard')) {
-                            setActiveTool('paste');
-                        } else {
-                            alert('Буфер обмена пуст.');
-                        }
-                    } else if (tool === 'grid-mobile') {
-                        toggleGrid();
-                    } else if (tool === 'show-all-mobile') {
-                        showAll();
-                    } else if (tool === 'link') {
-                        const url = prompt("Введите URL ссылки:", "https://");
-                        if (!url) return;
-                        const text = prompt("Введите текст для ссылки:", "Моя ссылка");
-                        if (!text) return;
-                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url, uuid: crypto.randomUUID() });
-                        fabricCanvas.add(linkText);
-                        saveState(); // Save state after adding link
-                    } else {
-                        // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
-                        if (tool === currentTool) {
-                            setActiveTool(null);
-                        } else {
-                            setActiveTool(tool);
-                        }
-                    }
+        // --- UNIFIED TOOL CLICK HANDLER ---
+        document.body.addEventListener('click', (e) => {
+            const toolButton = e.target.closest('[data-tool]');
+            if (!toolButton) return;
+
+            e.preventDefault();
+            const tool = toolButton.dataset.tool;
+
+            // Close dropdown if the button is inside one
+            const dropdownToggle = toolButton.closest('.dropdown-menu')?.parentElement.querySelector('.dropdown-toggle');
+            if (dropdownToggle) {
+                const dropdown = bootstrap.Dropdown.getInstance(dropdownToggle);
+                if (dropdown) {
+                    dropdown.hide();
                 }
-            });
+            }
+
+            // --- Action Tools (perform an action and exit) ---
+            switch (tool) {
+                case 'delete':
+                    fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
+                    fabricCanvas.discardActiveObject().renderAll();
+                    saveState();
+                    return;
+                case 'group':
+                    handleGroup();
+                    return;
+                case 'ungroup':
+                    handleUngroup();
+                    return;
+                case 'copy':
+                    const activeObject = fabricCanvas.getActiveObject();
+                    if (activeObject) {
+                        activeObject.clone(function(cloned) {
+                            const serialized = cloned.toJSON(['isLink', 'url', 'uuid']);
+                            localStorage.setItem('gmemoClipboard', JSON.stringify(serialized));
+                            // Simple feedback; consider a less intrusive notification
+                            // alert('Скопировано в буфер обмена!');
+                        });
+                    }
+                    return;
+                case 'link':
+                    const url = prompt("Введите URL ссылки:", "https://");
+                    if (!url) return;
+                    const text = prompt("Введите текст для ссылки:", "Моя ссылка");
+                    if (!text) return;
+                    const linkText = new fabric.IText(text, {
+                        left: 150,
+                        top: 150,
+                        fontSize: 24,
+                        fill: '#007bff',
+                        underline: true,
+                        fontFamily: 'Arial',
+                        isLink: true,
+                        url: url,
+                        uuid: crypto.randomUUID()
+                    });
+                    fabricCanvas.add(linkText);
+                    saveState();
+                    return;
+                case 'grid-mobile':
+                    toggleGrid();
+                    return;
+                case 'show-all-mobile':
+                    showAll();
+                    return;
+            }
+
+            // --- Mode Tools (toggle a state) ---
+            if (tool === 'paste') {
+                if (localStorage.getItem('gmemoClipboard')) {
+                    setActiveTool('paste');
+                } else {
+                    // alert('Буфер обмена пуст.');
+                }
+            } else {
+                // Standard toggle logic
+                if (tool === currentTool) {
+                    setActiveTool('select'); // Revert to select tool instead of null
+                } else {
+                    setActiveTool(tool);
+                }
+            }
         });
+
 
         // Add event listeners for mobile group/ungroup buttons
         if (mobileGroupButton) {
@@ -1426,64 +1460,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleUngroup();
             });
         }
-
-        // Add event listeners for shape buttons in the dropdown
-        const dropdownToolButtons = document.querySelectorAll('.dropdown-menu [data-tool]');
-        dropdownToolButtons.forEach(button => {
-            button.addEventListener('click', (e) => {
-                e.preventDefault();
-                const tool = button.dataset.tool;
-                if (tool) {
-                    // Close the dropdown after selecting a tool
-                    const dropdown = bootstrap.Dropdown.getInstance(button.closest('.dropdown-toggle'));
-                    if (dropdown) {
-                        dropdown.hide();
-                    }
-                    
-                    // Handle non-toggle tools first
-                    if (tool === 'delete') {
-                        fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
-                        fabricCanvas.discardActiveObject().renderAll();
-                        saveState();
-                        return; // Exit after action
-                    } else if (tool === 'copy') {
-                        const activeObject = fabricCanvas.getActiveObject();
-                        if (activeObject) {
-                            activeObject.clone(function(cloned) {
-                                const serialized = cloned.toJSON(['isLink', 'url', 'uuid']);
-                                localStorage.setItem('gmemoClipboard', JSON.stringify(serialized));
-                                alert('Скопировано в буфер обмена!');
-                            });
-                        }
-                        return; // Exit after action
-                    } else if (tool === 'paste') {
-                        if (localStorage.getItem('gmemoClipboard')) {
-                            setActiveTool('paste'); // This tool stays active until a click
-                        } else {
-                            alert('Буфер обмена пуст.');
-                        }
-                        return; // Exit
-                    } else if (tool === 'link') {
-                         const url = prompt("Введите URL ссылки:", "https://");
-                        if (!url) return;
-                        const text = prompt("Введите текст для ссылки:", "Моя ссылка");
-                        if (!text) return;
-                        const linkText = new fabric.IText(text, { left: 150, top: 150, fontSize: 24, fill: '#007bff', underline: true, fontFamily: 'Arial', isLink: true, url: url, uuid: crypto.randomUUID() });
-                        fabricCanvas.add(linkText);
-                        saveState();
-                        return; // Exit after action
-                    }
-
-
-                    // Toggle logic for other tools
-                    if (tool === currentTool) {
-                        setActiveTool(null);
-                    } else {
-                        setActiveTool(tool);
-                    }
-                }
-            });
-        });
 
         colorPickers.forEach(picker => { picker.addEventListener('input', (e) => { const newColor = e.target.value; colorPickers.forEach(p => p.value = newColor); updateBrushSettings(); }); });
         
