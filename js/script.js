@@ -617,7 +617,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (session) { 
                 await setupAuthenticatedApp(session); 
             } else { 
-                setupLoginPage(); // Show login page first
+                setupLocalApp(); // Show local app by default
             }
         };
 
