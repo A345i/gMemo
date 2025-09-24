@@ -237,68 +237,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
 
+        const updateMobileCanvasPadding = () => {
+            if (window.innerWidth >= 992) {
+                canvasContainer.style.paddingBottom = '0px';
+                return;
+            }
+
+            let bottomPadding = 60; // Height of the main mobile toolbar
+            if (mobileDrawOptions.classList.contains('active')) {
+                bottomPadding += mobileDrawOptions.offsetHeight;
+            }
+            if (mobileShapesOptions.classList.contains('active')) {
+                bottomPadding += mobileShapesOptions.offsetHeight;
+            }
+            if (mobileActionsOptions.classList.contains('active')) {
+                bottomPadding += mobileActionsOptions.offsetHeight;
+            }
+            canvasContainer.style.paddingBottom = `${bottomPadding}px`;
+            resizeCanvas();
+        };
+
+        const toggleMobilePanel = (panelElement, bodyClass) => {
+            const willBeActive = !panelElement.classList.contains('active');
+
+            // Deactivate all other panels
+            [mobileDrawOptions, mobileShapesOptions, mobileActionsOptions].forEach(p => {
+                if (p !== panelElement) p.classList.remove('active');
+            });
+            document.body.className = document.body.className.replace(/\s*\S*-options-active/g, '');
+
+
+            // Toggle the target panel
+            panelElement.classList.toggle('active', willBeActive);
+            if (willBeActive && bodyClass) {
+                document.body.classList.add(bodyClass);
+            }
+
+            updateMobileCanvasPadding();
+            setTimeout(updateMobileCanvasPadding, 210); // Re-check after transition
+        };
+
+
         // --- Mobile Toolbar Logic ---
         mobileShapesToggle.addEventListener('click', () => {
-            const willBeActive = !mobileShapesOptions.classList.contains('active');
-
-            // Hide draw options if we are opening shapes
-            if (willBeActive && mobileDrawOptions.classList.contains('active')) {
-                mobileDrawOptions.classList.remove('active');
-                document.body.classList.remove('draw-tool-active');
-            }
-
-            mobileShapesOptions.classList.toggle('active', willBeActive);
-            document.body.classList.toggle('shapes-options-active', willBeActive);
-
+            toggleMobilePanel(mobileShapesOptions, 'shapes-options-active');
             // If we are closing the panel and a shape tool is active, deactivate the tool
-            if (!willBeActive && ['line', 'arrow', 'rect', 'circle'].includes(currentTool)) {
+            if (!mobileShapesOptions.classList.contains('active') && ['line', 'arrow', 'rect', 'circle'].includes(currentTool)) {
                 setActiveTool(null);
             }
-
-            setTimeout(resizeCanvas, 210);
         });
 
-        // --- Desktop Shapes Dropdown Logic ---
-        const shapesDropdown = document.getElementById('shapes-dropdown');
-        if (shapesDropdown) {
-            // Add event listeners to all shape buttons in the dropdown
-            const shapeButtons = document.querySelectorAll('.dropdown-item[data-tool]');
-            shapeButtons.forEach(button => {
-                button.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    const tool = button.dataset.tool;
-                    if (tool) {
-                        // Toggle logic: if same tool is clicked, deactivate. Otherwise, activate new tool.
-                        if (tool === currentTool) {
-                            setActiveTool(null);
-                        } else {
-                            setActiveTool(tool);
-                        }
-                    }
-                });
-            });
-        }
-
         mobileActionsToggle.addEventListener('click', () => {
-            const willBeActive = !mobileActionsOptions.classList.contains('active');
-
-            // Hide other panels if we are opening actions
-            if (willBeActive) {
-                if (mobileDrawOptions.classList.contains('active')) {
-                    mobileDrawOptions.classList.remove('active');
-                    document.body.classList.remove('draw-tool-active');
-                }
-                if (mobileShapesOptions.classList.contains('active')) {
-                    mobileShapesOptions.classList.remove('active');
-                    document.body.classList.remove('shapes-options-active');
-                }
-            }
-
-            mobileActionsOptions.classList.toggle('active', willBeActive);
-            document.body.classList.toggle('actions-options-active', willBeActive);
-            mobileActionsToggle.classList.toggle('active', willBeActive);
-
-            setTimeout(resizeCanvas, 210);
+            toggleMobilePanel(mobileActionsOptions, 'actions-options-active');
+            mobileActionsToggle.classList.toggle('active', mobileActionsOptions.classList.contains('active'));
         });
         
         // --- UI State Functions ---
@@ -1274,23 +1265,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             // Manage mobile panels
-            // Draw options panel
             if (isDrawTool) {
                 mobileDrawOptions.classList.add('active');
-                document.body.classList.add('draw-tool-active');
+                if (mobileShapesOptions.classList.contains('active')) {
+                    toggleMobilePanel(mobileShapesOptions);
+                }
+                 if (mobileActionsOptions.classList.contains('active')) {
+                    toggleMobilePanel(mobileActionsOptions);
+                }
             } else {
-                mobileDrawOptions.classList.remove('active');
-                document.body.classList.remove('draw-tool-active');
-            }
-
-            // Shapes options panel - hide if a draw tool is selected, or if a non-shape tool is selected
-            if (isDrawTool || !isShapeTool) {
-                mobileShapesOptions.classList.remove('active');
-                document.body.classList.remove('shapes-options-active');
+                if (mobileDrawOptions.classList.contains('active')) {
+                    mobileDrawOptions.classList.remove('active');
+                }
             }
             
-            // Use a timeout to ensure the DOM has updated before resizing
-            setTimeout(resizeCanvas, 210); // 210ms is slightly longer than the CSS transition
+            updateMobileCanvasPadding();
+            setTimeout(updateMobileCanvasPadding, 210);
         };
 
         function showAll() {
