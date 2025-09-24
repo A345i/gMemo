@@ -103,10 +103,11 @@ document.addEventListener('DOMContentLoaded', () => {
         let textCreationInfo = null;
         let voiceInputPosition = null; // Для хранения координат клика для голосового ввода
         let isGridVisible = false;
-        const gridSpacing = 50; // Расстояние между линиями сетки в пиксел��х
+        const gridSpacing = 50; // Расстояние между линиями сетки в пикселях
         const gridColor = '#e0e0e0';
         let realtimeChannel = null; // Для хранения подписки Realtime
-        let sessionId = null; // --- NEW: Unique ID for this tab/session ---
+        let clientId = crypto.randomUUID(); // --- MODIFIED: Unique ID for this tab/session ---
+        let isApplyingRemoteChange = false; // --- NEW: Flag to prevent broadcasting remote changes ---
 
         // --- Voice Recognition Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -201,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const text = voiceTextResult.value.trim();
                 if (text && voiceInputPosition) {
                     let textObject;
+                    const newUuid = crypto.randomUUID();
                     if (voiceInputPosition.isTextbox) {
                         // Create a Textbox
                         textObject = new fabric.Textbox(text, {
@@ -211,7 +213,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             fill: colorPickers[0].value,
                             fontSize: 24,
                             fontFamily: 'Arial',
-                            uuid: crypto.randomUUID()
+                            uuid: newUuid
                         });
                     } else {
                         // Create an IText
@@ -223,12 +225,14 @@ document.addEventListener('DOMContentLoaded', () => {
                             fontFamily: 'Arial',
                             originX: 'center',
                             originY: 'center',
-                            uuid: crypto.randomUUID()
+                            uuid: newUuid
                         });
                     }
                     fabricCanvas.add(textObject);
                     fabricCanvas.setActiveObject(textObject);
                     fabricCanvas.renderAll();
+                    
+                    broadcastOperation({ type: 'object:added', data: textObject.toJSON(['uuid']) });
                     saveState();
                 }
                 voiceModal.hide();
@@ -427,51 +431,102 @@ document.addEventListener('DOMContentLoaded', () => {
         const debouncedSaveLocal = _.debounce(saveNotesLocally, 2000);
 
         // --- Supabase Data Functions ---
+        // --- NEW: Operation-based sync logic ---
+        const broadcastOperation = (payload) => {
+            if (!realtimeChannel || isApplyingRemoteChange) {
+                return;
+            }
+            realtimeChannel.send({
+                type: 'broadcast',
+                event: 'canvas-operation',
+                payload: { ...payload, clientId: clientId, pageIndex: currentPageIndex },
+            });
+        };
+
+        const handleIncomingOperation = (payload) => {
+            if (payload.clientId === clientId) {
+                return; // Should be redundant due to self:false, but good for safety
+            }
+            
+            // If the operation is for a different page, ignore it.
+            if (payload.pageIndex !== currentPageIndex) {
+                console.log(`Ignoring operation for page ${payload.pageIndex} (current is ${currentPageIndex})`);
+                return;
+            }
+
+            isApplyingRemoteChange = true;
+            try {
+                switch (payload.type) {
+                    case 'object:added':
+                        fabric.util.enlivenObjects([payload.data], (objects) => {
+                            const newObject = objects[0];
+                            // Check if object with same UUID already exists to prevent duplicates
+                            if (newObject && !fabricCanvas.getObjects().some(o => o.uuid === newObject.uuid)) {
+                                fabricCanvas.add(newObject);
+                                fabricCanvas.renderAll();
+                            }
+                        }, 'fabric');
+                        break;
+
+                    case 'object:modified':
+                        const targetObject = fabricCanvas.getObjects().find(o => o.uuid === payload.data.uuid);
+                        if (targetObject) {
+                            targetObject.set(payload.data.updates);
+                            targetObject.setCoords();
+                            fabricCanvas.renderAll();
+                        }
+                        break;
+
+                    case 'object:removed':
+                         const objectsToRemove = fabricCanvas.getObjects().filter(o => payload.data.uuids.includes(o.uuid));
+                        if (objectsToRemove.length > 0) {
+                            objectsToRemove.forEach(obj => fabricCanvas.remove(obj));
+                            fabricCanvas.discardActiveObject();
+                            fabricCanvas.renderAll();
+                        }
+                        break;
+                    
+                    case 'objects:cleared':
+                        fabricCanvas.clear();
+                        fabricCanvas.backgroundColor = '#fff'; // Or whatever default you have
+                        fabricCanvas.renderAll();
+                        break;
+                }
+            } catch (e) {
+                console.error("Error applying remote change:", e);
+            } finally {
+                isApplyingRemoteChange = false;
+            }
+        };
+
         const setupRealtimeSubscription = () => {
-            // Clean up any existing channel before creating a new one
             if (realtimeChannel) {
                 supabaseClient.removeChannel(realtimeChannel);
                 realtimeChannel = null;
             }
-
             if (!currentUser) return;
 
-            realtimeChannel = supabaseClient.channel(`profiles:id=eq.${currentUser.id}`)
-                .on('postgres_changes', { 
-                    event: 'UPDATE', 
-                    schema: 'public', 
-                    table: 'profiles', 
-                    filter: `id=eq.${currentUser.id}` 
-                }, 
-                (payload) => {
-            // --- NEW: Robust sync logic to prevent echo ---
-            try {
-                // Attempt to parse the incoming data to check who made the change.
-                if (payload.new && payload.new.profile_text) {
-                    const updatedData = JSON.parse(payload.new.profile_text);
-                    // If the change was made by this browser session, ignore it.
-                    if (updatedData.lastUpdatedBy === sessionId) {
-                        console.log('Ignoring own update (echo).');
-                        return;
-                    }
-                }
-            } catch (e) {
-                // If parsing fails, log the error but still reload to be safe.
-                console.error('Error parsing realtime payload, reloading as a fallback:', e);
-                loadNotesFromSupabase();
-                return;
-            }
+            // Use a unique channel for each user's notes
+            const channelId = `notes-${currentUser.id}`;
+            realtimeChannel = supabaseClient.channel(channelId, {
+                config: {
+                    broadcast: {
+                        self: false, // Don't receive our own broadcasts
+                    },
+                },
+            });
 
-            // If the change is from another session, load the new data.
-            console.log('Change detected from another session. Loading new data.');
-            loadNotesFromSupabase();
-        })
+            realtimeChannel
+                .on('broadcast', { event: 'canvas-operation' }, ({ payload }) => {
+                    handleIncomingOperation(payload);
+                })
                 .subscribe((status, err) => {
                     if (status === 'SUBSCRIBED') {
-                        console.log('Successfully subscribed to Realtime channel!');
+                        console.log(`Successfully subscribed to Realtime channel: ${channelId}`);
                     }
                     if (status === 'CHANNEL_ERROR') {
                         console.error('Realtime subscription error:', err);
+                        // Maybe try to resubscribe after a delay
                     }
                 });
         };
@@ -484,18 +539,11 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (data && data.profile_text) {
                 try {
                     const savedData = JSON.parse(data.profile_text);
-                    // Handle both old format (array of pages) and new format (object with pages and currentPageIndex)
-                    if (Array.isArray(savedData)) {
-                        // Old format - only pages array
-                        pages = savedData;
-                        loadPage(0); // Default to first page for old data
-                    } else if (savedData && typeof savedData === 'object') {
-                        // New format - object with pages and currentPageIndex
+                    if (savedData && typeof savedData === 'object') {
                         if (Array.isArray(savedData.pages)) {
                             pages = savedData.pages;
                         }
                         const savedCurrentPageIndex = savedData.currentPageIndex || 0;
-                        // Validate that the saved index is within bounds
                         if (savedCurrentPageIndex >= pages.length) {
                             loadPage(Math.max(0, pages.length - 1));
                         } else {
@@ -504,6 +552,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 } catch (e) {
                     console.error('Error parsing saved notes JSON:', e);
+                    loadPage(0);
                 }
             }
             else {
@@ -517,11 +566,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
             saveCurrentPage();
-            // Save both pages and current page index in a single object
             const saveData = {
                 pages: pages,
                 currentPageIndex: currentPageIndex,
-                lastUpdatedBy: sessionId // --- NEW: Tag the save with our session ID ---
             };
             const notesJson = JSON.stringify(saveData);
             const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
@@ -536,7 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         
-        const debouncedSave = _.debounce(saveNotesToSupabase, 2000);
+        const debouncedSave = _.debounce(saveNotesToSupabase, 3000); // Increased debounce time
 
         // --- NEW, ROBUST AUTH HANDLING ---
         const setupAuthenticatedApp = async (session) => {
@@ -605,7 +652,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const initializeApp = async () => {
-            sessionId = crypto.randomUUID(); 
             showLoader();
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) { 
@@ -638,7 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Canvas & App Logic ---
         const saveState = () => { 
-            if (historyLock) return;
+            if (historyLock || isApplyingRemoteChange) return; // --- MODIFIED: Don't save history for remote changes
             saveIndicator.classList.remove('saved');
             saveIndicator.classList.add('unsaved');
             redoStack = []; 
@@ -775,6 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             pastedObject.setCoords();
                             fabricCanvas.setActiveObject(pastedObject);
                             fabricCanvas.renderAll();
+                            broadcastOperation({ type: 'object:added', data: pastedObject.toJSON(['uuid']) });
                             saveState();
                         }
                     }, 'fabric');
@@ -924,6 +971,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (creationType === 'text') {
                     let textObject;
+                    const newUuid = crypto.randomUUID();
                     if (wasDrag) {
                         // Dragged - create a Textbox
                         textObject = new fabric.Textbox('Текст', {
@@ -934,7 +982,7 @@ document.addEventListener('DOMContentLoaded', () => {
                             fill: colorPickers[0].value,
                             fontSize: 24,
                             fontFamily: 'Arial',
-                            uuid: crypto.randomUUID()
+                            uuid: newUuid
                         });
                     } else {
                         // Clicked - create an IText
@@ -946,13 +994,15 @@ document.addEventListener('DOMContentLoaded', () => {
                             fontFamily: 'Arial',
                             originX: 'center',
                             originY: 'center',
-                            uuid: crypto.randomUUID()
+                            uuid: newUuid
                         });
                     }
                     fabricCanvas.add(textObject);
                     fabricCanvas.setActiveObject(textObject);
                     textObject.enterEditing();
                     textObject.selectAll();
+                    
+                    broadcastOperation({ type: 'object:added', data: textObject.toJSON(['uuid']) });
                     setActiveTool('select');
 
                 } else if (creationType === 'voice') {
@@ -980,6 +1030,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 isDrawingShape = false;
                 if (shapeInProgress) {
                     shapeInProgress.setCoords(); // Finalize coordinates
+                    broadcastOperation({ type: 'object:added', data: shapeInProgress.toJSON(['uuid']) });
                     saveState();
                 }
                 shapeInProgress = null;
@@ -1122,6 +1173,15 @@ document.addEventListener('DOMContentLoaded', () => {
                     fabricCanvas.renderAll();
                     historyLock = false;
                     updateHistoryButtons();
+                    // BIG CHANGE: When undoing, we must inform others.
+                    // The simplest robust way is to treat it as a full clear and re-add.
+                    broadcastOperation({ type: 'objects:cleared' });
+                    const objects = fabricCanvas.getObjects();
+                    if (objects.length > 0) {
+                        objects.forEach(obj => {
+                             broadcastOperation({ type: 'object:added', data: obj.toJSON(['uuid']) });
+                        });
+                    }
                 });
             }
         };
@@ -1138,6 +1198,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     fabricCanvas.renderAll();
                     historyLock = false;
                     updateHistoryButtons();
+                    // Treat redo as a full clear and re-add as well
+                     broadcastOperation({ type: 'objects:cleared' });
+                    const objects = fabricCanvas.getObjects();
+                    if (objects.length > 0) {
+                        objects.forEach(obj => {
+                             broadcastOperation({ type: 'object:added', data: obj.toJSON(['uuid']) });
+                        });
+                    }
                 });
             }
         };
@@ -1343,10 +1411,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const handleGroup = () => {
             const activeSelection = fabricCanvas.getActiveObject();
             if (activeSelection && activeSelection.type === 'activeSelection') {
+                const oldObjects = activeSelection.getObjects();
+                const oldUuids = oldObjects.map(o => o.uuid);
+                
                 const group = activeSelection.toGroup();
                 group.uuid = crypto.randomUUID(); // Assign UUID to the new group
                 fabricCanvas.renderAll();
-                saveState(); // Save state after grouping
+                
+                broadcastOperation({ type: 'object:removed', data: { uuids: oldUuids } });
+                broadcastOperation({ type: 'object:added', data: group.toJSON(['uuid']) });
+                saveState();
             }
         };
 
@@ -1354,9 +1428,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const handleUngroup = () => {
             const activeGroup = fabricCanvas.getActiveObject();
             if (activeGroup && activeGroup.type === 'group') {
-                activeGroup.toActiveSelection();
+                const groupUuid = activeGroup.uuid;
+                // Ungrouping in fabric.js is async, but toActiveSelection is sync
+                const newObjects = activeGroup.toActiveSelection().getObjects();
                 fabricCanvas.renderAll();
-                saveState(); // Save state after ungrouping
+                
+                broadcastOperation({ type: 'object:removed', data: { uuids: [groupUuid] } });
+                newObjects.forEach(obj => {
+                    // We need to ensure the objects have their UUIDs before broadcasting
+                    if (!obj.uuid) {
+                        obj.uuid = crypto.randomUUID();
+                    }
+                    broadcastOperation({ type: 'object:added', data: obj.toJSON(['uuid']) });
+                });
+                saveState();
             }
         };
 
@@ -1380,9 +1465,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- Action Tools (perform an action and exit) ---
             switch (tool) {
                 case 'delete':
-                    fabricCanvas.getActiveObjects().forEach(obj => fabricCanvas.remove(obj));
-                    fabricCanvas.discardActiveObject().renderAll();
-                    saveState();
+                    const activeObjects = fabricCanvas.getActiveObjects();
+                    if (activeObjects.length > 0) {
+                        const uuidsToRemove = activeObjects.map(o => o.uuid);
+                        fabricCanvas.remove(...activeObjects);
+                        fabricCanvas.discardActiveObject().renderAll();
+                        broadcastOperation({ type: 'object:removed', data: { uuids: uuidsToRemove } });
+                        saveState();
+                    }
                     return;
                 case 'group':
                     handleGroup();
@@ -1396,8 +1486,6 @@ document.addEventListener('DOMContentLoaded', () => {
                         activeObject.clone(function(cloned) {
                             const serialized = cloned.toJSON(['isLink', 'url', 'uuid']);
                             localStorage.setItem('gmemoClipboard', JSON.stringify(serialized));
-                            // Simple feedback; consider a less intrusive notification
-                            // alert('Скопировано в буфер обмена!');
                         });
                     }
                     return;
@@ -1418,6 +1506,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         uuid: crypto.randomUUID()
                     });
                     fabricCanvas.add(linkText);
+                    broadcastOperation({ type: 'object:added', data: linkText.toJSON(['uuid']) });
                     saveState();
                     return;
                 case 'grid-mobile':
@@ -1432,8 +1521,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tool === 'paste') {
                 if (localStorage.getItem('gmemoClipboard')) {
                     setActiveTool('paste');
-                } else {
-                    // alert('Буфер обмена пуст.');
                 }
             } else {
                 // Standard toggle logic
@@ -1477,15 +1564,54 @@ document.addEventListener('DOMContentLoaded', () => {
         widthIncreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width + 1));
         widthDecreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width - 1));
 
-        imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); img.uuid = crypto.randomUUID(); fabricCanvas.add(img); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
+        imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); img.uuid = crypto.randomUUID(); fabricCanvas.add(img); broadcastOperation({ type: 'object:added', data: img.toJSON(['uuid']) }); saveState(); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
         window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
         
-        fabricCanvas.on({ 'object:added': saveState, 'object:removed': saveState, 'object:modified': saveState });
+        const onObjectModified = _.debounce((e) => {
+            if (!e.target || isApplyingRemoteChange) return;
+            const target = e.target;
+            
+            const broadcastPayload = (obj) => {
+                broadcastOperation({
+                    type: 'object:modified',
+                    data: {
+                        uuid: obj.uuid,
+                        updates: {
+                            left: obj.left,
+                            top: obj.top,
+                            scaleX: obj.scaleX,
+                            scaleY: obj.scaleY,
+                            angle: obj.angle,
+                            skewX: obj.skewX,
+                            skewY: obj.skewY,
+                            flipX: obj.flipX,
+                            flipY: obj.flipY,
+                            // Include properties specific to object types
+                            ...(obj.type === 'i-text' || obj.type === 'textbox' ? { text: obj.text, fill: obj.fill, fontSize: obj.fontSize, fontFamily: obj.fontFamily, underline: obj.underline } : {}),
+                            ...(obj.type === 'rect' || obj.type === 'ellipse' || obj.type === 'line' ? { stroke: obj.stroke, strokeWidth: obj.strokeWidth } : {}),
+                        }
+                    }
+                });
+            };
 
-        // --- NEW: Assign UUID to newly created paths from free drawing ---
+            if (target.type === 'activeSelection') {
+                 target.getObjects().forEach(broadcastPayload);
+            } else {
+                 broadcastPayload(target);
+            }
+            saveState();
+        }, 100); // Debounce to avoid flooding with modification events
+
+        fabricCanvas.on({
+            'object:modified': onObjectModified,
+        });
+
+        // --- NEW: Assign UUID and broadcast newly created paths from free drawing ---
         fabricCanvas.on('path:created', function(e) {
             if (e.path) {
                 e.path.uuid = crypto.randomUUID();
+                broadcastOperation({ type: 'object:added', data: e.path.toJSON(['uuid']) });
+                saveState();
             }
         });
 
