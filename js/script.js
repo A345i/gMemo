@@ -607,6 +607,46 @@ document.addEventListener('DOMContentLoaded', () => {
                 return; // Stop further processing
             }
 
+            if (currentTool === 'paste') {
+                const clipboardData = localStorage.getItem('gmemoClipboard');
+                if (clipboardData) {
+                    const objectJSON = JSON.parse(clipboardData);
+                    const pointer = fabricCanvas.getPointer(opt.e);
+
+                    fabric.util.enlivenObjects([objectJSON], function(objects) {
+                        if (objects.length > 0) {
+                            const pastedObject = objects[0];
+                            
+                            // Assign new UUIDs to all objects being pasted
+                            const assignNewUuids = (obj) => {
+                                obj.uuid = crypto.randomUUID();
+                                if (obj.forEachObject) {
+                                    obj.forEachObject(assignNewUuids);
+                                }
+                            };
+                            assignNewUuids(pastedObject);
+
+                            pastedObject.set({
+                                left: pointer.x,
+                                top: pointer.y,
+                                originX: 'center',
+                                originY: 'center',
+                                evented: true,
+                            });
+
+                            fabricCanvas.add(pastedObject);
+                            pastedObject.setCoords();
+                            fabricCanvas.setActiveObject(pastedObject);
+                            fabricCanvas.renderAll();
+                            saveState();
+                        }
+                    }, 'fabric');
+                }
+                // Deactivate paste mode after pasting once
+                setActiveTool('select');
+                return;
+            }
+
             if (opt.e.altKey) {
                 isPanning = true;
                 fabricCanvas.selection = false;
@@ -985,6 +1025,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (tool === 'eyedropper') {
                 fabricCanvas.defaultCursor = 'crosshair';
                 fabricCanvas.hoverCursor = 'crosshair';
+            } else if (tool === 'paste') {
+                fabricCanvas.defaultCursor = 'crosshair';
+                fabricCanvas.hoverCursor = 'crosshair';
             } else {
                 fabricCanvas.defaultCursor = 'default';
                 fabricCanvas.hoverCursor = 'default';
@@ -1120,31 +1163,20 @@ document.addEventListener('DOMContentLoaded', () => {
                         handleUngroup();
                     } else if (tool === 'copy') {
                         const activeObject = fabricCanvas.getActiveObject();
-                        if (!activeObject) return;
-
-                        activeObject.clone((cloned) => {
-                            fabricCanvas.discardActiveObject();
-                            cloned.set({
-                                left: cloned.left + 20,
-                                top: cloned.top + 20,
-                                evented: true, // Make sure clone is interactive
+                        if (activeObject) {
+                            activeObject.clone(function(cloned) {
+                                const serialized = cloned.toJSON(['isLink', 'url', 'uuid']);
+                                localStorage.setItem('gmemoClipboard', JSON.stringify(serialized));
+                                // Optional: provide user feedback
+                                alert('Скопировано в буфер обмена!');
                             });
-                            if (cloned.type === 'activeSelection') {
-                                // active selection needs a reference to the canvas.
-                                cloned.canvas = fabricCanvas;
-                                cloned.forEachObject(obj => {
-                                    obj.uuid = crypto.randomUUID(); // --- NEW: Assign new UUID to each copied object
-                                    fabricCanvas.add(obj);
-                                });
-                                cloned.setCoords();
-                            } else {
-                                cloned.uuid = crypto.randomUUID(); // --- NEW: Assign new UUID to the copied object
-                                fabricCanvas.add(cloned);
-                            }
-                            fabricCanvas.setActiveObject(cloned);
-                            fabricCanvas.requestRenderAll();
-                            saveState(); // Save state after copying
-                        });
+                        }
+                    } else if (tool === 'paste') {
+                        if (localStorage.getItem('gmemoClipboard')) {
+                            setActiveTool('paste');
+                        } else {
+                            alert('Буфер обмена пуст.');
+                        }
                     } else if (tool === 'link') {
                         const url = prompt("Введите URL ссылки:", "https://");
                         if (!url) return;
