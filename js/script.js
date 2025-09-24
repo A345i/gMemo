@@ -444,30 +444,27 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const handleIncomingOperation = (payload) => {
-            if (payload.clientId === clientId) {
-                return; // Should be redundant due to self:false, but good for safety
-            }
-            
-            // If the operation is for a different page, ignore it.
-            if (payload.pageIndex !== currentPageIndex) {
-                console.log(`Ignoring operation for page ${payload.pageIndex} (current is ${currentPageIndex})`);
+            // Ignore broadcasts from self
+            if (payload.clientId === clientId) return;
+
+            // If the operation is for a different page, ignore it for object manipulations
+            if (payload.pageIndex !== currentPageIndex && !payload.type.startsWith('page:')) {
                 return;
             }
 
             isApplyingRemoteChange = true;
             try {
                 switch (payload.type) {
+                    // Object Operations
                     case 'object:added':
                         fabric.util.enlivenObjects([payload.data], (objects) => {
                             const newObject = objects[0];
-                            // Check if object with same UUID already exists to prevent duplicates
                             if (newObject && !fabricCanvas.getObjects().some(o => o.uuid === newObject.uuid)) {
                                 fabricCanvas.add(newObject);
                                 fabricCanvas.renderAll();
                             }
                         }, 'fabric');
                         break;
-
                     case 'object:modified':
                         const targetObject = fabricCanvas.getObjects().find(o => o.uuid === payload.data.uuid);
                         if (targetObject) {
@@ -476,20 +473,42 @@ document.addEventListener('DOMContentLoaded', () => {
                             fabricCanvas.renderAll();
                         }
                         break;
-
                     case 'object:removed':
-                         const objectsToRemove = fabricCanvas.getObjects().filter(o => payload.data.uuids.includes(o.uuid));
+                        const objectsToRemove = fabricCanvas.getObjects().filter(o => payload.data.uuids.includes(o.uuid));
                         if (objectsToRemove.length > 0) {
                             objectsToRemove.forEach(obj => fabricCanvas.remove(obj));
-                            fabricCanvas.discardActiveObject();
-                            fabricCanvas.renderAll();
+                            fabricCanvas.discardActiveObject().renderAll();
                         }
                         break;
-                    
                     case 'objects:cleared':
                         fabricCanvas.clear();
-                        fabricCanvas.backgroundColor = '#fff'; // Or whatever default you have
+                        fabricCanvas.backgroundColor = '#fff';
                         fabricCanvas.renderAll();
+                        break;
+
+                    // Page Operations
+                    case 'page:navigate':
+                        saveCurrentPage(); // Save local changes before switching
+                        loadPage(payload.data.newPageIndex);
+                        break;
+                    case 'page:add':
+                        saveCurrentPage();
+                        pages.push(null);
+                        updatePageIndicator();
+                        break;
+                    case 'page:delete':
+                        saveCurrentPage();
+                        pages.splice(payload.data.deletedPageIndex, 1);
+                        // Only switch page if the deleted page was the active one
+                        if (currentPageIndex === payload.data.deletedPageIndex) {
+                             loadPage(payload.data.newPageIndex);
+                        } else {
+                            // If another page was deleted, our index might need updating
+                            if (currentPageIndex > payload.data.deletedPageIndex) {
+                                currentPageIndex--;
+                            }
+                            updatePageIndicator();
+                        }
                         break;
                 }
             } catch (e) {
@@ -740,6 +759,14 @@ document.addEventListener('DOMContentLoaded', () => {
         let touchStartTime = 0;
         let lastTouchTarget = null;
 
+        const debouncedSetCoords = _.debounce(() => {
+            const activeObject = fabricCanvas.getActiveObject();
+            if (activeObject) {
+                activeObject.setCoords();
+                fabricCanvas.renderAll();
+            }
+        }, 150);
+
         fabricCanvas.on('mouse:wheel', function(opt) {
             if (!opt.e.altKey) return;
             opt.e.preventDefault();
@@ -750,6 +777,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (zoom > 20) zoom = 20;
             if (zoom < 0.01) zoom = 0.01;
             fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            // --- FIX: Recalculate controls after zooming ---
+            debouncedSetCoords();
         });
 
         fabricCanvas.on('mouse:down', function(opt) {
@@ -959,6 +988,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 isPanning = false;
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
+                // --- FIX: Recalculate controls on pan end ---
+                const activeObject = fabricCanvas.getActiveObject();
+                if (activeObject) {
+                    activeObject.setCoords();
+                }
+                fabricCanvas.renderAll();
                 saveState(); // Save state after panning
             } else if (isCreatingText && !isPanning) {
                 // If we were drawing a selection box, remove it
@@ -1137,6 +1172,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     fabricCanvas.isDrawingMode = true;
                     drawingModeWasActive = false;
                 }
+                // --- FIX: Recalculate controls on pan/zoom end ---
+                const activeObject = fabricCanvas.getActiveObject();
+                if (activeObject) {
+                    activeObject.setCoords();
+                }
+                fabricCanvas.renderAll();
                 saveState(); // Save state after touch pan/zoom
             }
             if (e.touches.length === 0) { isTouching = false; lastTouchTarget = null; }
@@ -1274,6 +1315,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const updatePageIndicator = () => { pageControls.indicator.textContent = `Стр. ${currentPageIndex + 1} / ${pages.length}`; };
         
         const setActiveTool = (tool) => {
+            // --- NEW: Toggle logic ---
+            if (tool === currentTool) {
+                tool = null; // If clicking the same tool, deactivate it
+            }
+
             currentTool = tool;
             const isDrawTool = tool === 'draw' || tool === 'marker';
             const isShapeTool = ['line', 'arrow', 'rect', 'circle'].includes(tool);
@@ -1284,6 +1330,9 @@ document.addEventListener('DOMContentLoaded', () => {
             // Configure canvas based on tool
             const isSelectMode = tool === 'select';
             fabricCanvas.selection = isSelectMode;
+            fabricCanvas.defaultCursor = 'default';
+            fabricCanvas.hoverCursor = 'default';
+
 
             // When not in select mode, ensure nothing is selected
             if (!isSelectMode) {
@@ -1292,9 +1341,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Set object interactivity based on the current tool
             fabricCanvas.forEachObject(obj => {
+                // An object can be selected only if the select tool is active.
                 const isSelectable = (tool === 'select');
-                // An object can fire events if we are in select mode, OR
-                // if we are in neutral mode and the object is a link.
+                // An object can fire events (like for links) if we are in select or null mode.
                 const isEvented = isSelectable || (tool === null && obj.isLink);
                 obj.set({ 
                     selectable: isSelectable,
@@ -1302,16 +1351,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
             });
 
-            if (tool === 'eyedropper') {
+            if (tool === 'eyedropper' || tool === 'paste') {
                 fabricCanvas.defaultCursor = 'crosshair';
                 fabricCanvas.hoverCursor = 'crosshair';
-            } else if (tool === 'paste') {
-                fabricCanvas.defaultCursor = 'crosshair';
-                fabricCanvas.hoverCursor = 'crosshair';
-            } else {
-                fabricCanvas.defaultCursor = 'default';
-                fabricCanvas.hoverCursor = 'default';
             }
+            
             fabricCanvas.renderAll();
 
 
@@ -1523,12 +1567,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     setActiveTool('paste');
                 }
             } else {
-                // Standard toggle logic
-                if (tool === currentTool) {
-                    setActiveTool('select'); // Revert to select tool instead of null
-                } else {
-                    setActiveTool(tool);
-                }
+                // Standard toggle logic: calling with the current tool will deactivate it.
+                setActiveTool(tool);
             }
         });
 
@@ -1637,13 +1677,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
 
-        // --- Page Navigation with IMMEDIATE save ---
+        // --- Page Navigation with IMMEDIATE save & SYNC ---
         pageControls.prev.addEventListener('click', async () => {
             if (currentPageIndex > 0) {
                 showLoader();
                 saveCurrentPage(); // Save canvas of the page we are leaving
                 const newPageIndex = currentPageIndex - 1;
                 loadPage(newPageIndex); // Update local state and currentPageIndex
+                broadcastOperation({ type: 'page:navigate', data: { newPageIndex } });
                 if (currentUser) {
                     await saveNotesToSupabase(); // Save the new state with the correct index
                 } else {
@@ -1658,6 +1699,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 saveCurrentPage(); // Save canvas of the page we are leaving
                 const newPageIndex = currentPageIndex + 1;
                 loadPage(newPageIndex); // Update local state and currentPageIndex
+                broadcastOperation({ type: 'page:navigate', data: { newPageIndex } });
                 if (currentUser) {
                     await saveNotesToSupabase();
                 } else {
@@ -1672,6 +1714,7 @@ document.addEventListener('DOMContentLoaded', () => {
             pages.push(null);
             const newPageIndex = pages.length - 1;
             loadPage(newPageIndex); // Update local state and currentPageIndex
+            broadcastOperation({ type: 'page:add' });
             if (currentUser) {
                 await saveNotesToSupabase();
             } else {
@@ -1686,13 +1729,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (confirm("Вы уверены, что хотите удалить эту страницу?")) {
                 showLoader();
-                // No need to save the current page as it's being deleted
+                const deletedPageIndex = currentPageIndex;
                 pages.splice(currentPageIndex, 1);
                 let newPageIndex = currentPageIndex;
                 if (newPageIndex >= pages.length) {
                     newPageIndex = pages.length - 1;
                 }
                 loadPage(newPageIndex); // Update local state and currentPageIndex
+                broadcastOperation({ type: 'page:delete', data: { deletedPageIndex, newPageIndex } });
                 if (currentUser) {
                     await saveNotesToSupabase();
                 } else {
