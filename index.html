@@ -93,85 +93,85 @@
                 <div class="collapse navbar-collapse" id="toolbar">
                     <!-- Desktop Tools (Hidden on Mobile) -->
                     <ul class="navbar-nav me-auto mb-2 mb-lg-0 align-items-center d-none d-lg-flex">
+                        <!-- Main Tools -->
                         <li class="nav-item">
-                            <button data-tool="select" class="btn btn-light active" title="Выбрать и перемещать"><i class="bi bi-arrows-move"></i></button>
+                            <div class="btn-group" role="group" aria-label="Main tools">
+                                <button data-tool="select" class="btn btn-light active" title="Выбрать и перемещать"><i class="bi bi-arrows-move"></i></button>
+                                <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
+                                <button data-tool="marker" class="btn btn-light" title="Маркер"><i class="bi bi-highlighter"></i></button>
+                            </div>
                         </li>
-                        <li class="nav-item">
-                            <button data-tool="draw" class="btn btn-light" title="Рисовать"><i class="bi bi-pencil-fill"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="marker" class="btn btn-light" title="Маркер"><i class="bi bi-highlighter"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
-                        </li>
-                        <li class="nav-item ms-2 border-start ps-2 dropdown">
-                            <button class="btn btn-light dropdown-toggle" type="button" id="shapes-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Фигуры">
-                                <i class="bi bi-pentagon"></i>
+
+                        <!-- Edit Dropdown -->
+                        <li class="nav-item dropdown ms-2">
+                            <button class="btn btn-light dropdown-toggle" type="button" id="edit-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Правка">
+                                <i class="bi bi-pencil-square"></i> Правка
                             </button>
-                            <ul class="dropdown-menu" aria-labelledby="shapes-dropdown">
-                                <li><button data-tool="line" class="dropdown-item" title="Линия"><i class="bi bi-slash-lg"></i> Линия</button></li>
-                                <li><button data-tool="arrow" class="dropdown-item" title="Стрелка"><i class="bi bi-arrow-right"></i> Стрелка</button></li>
-                                <li><button data-tool="rect" class="dropdown-item" title="Прямоугольник"><i class="bi bi-square"></i> Прямоугольник</button></li>
-                                <li><button data-tool="circle" class="dropdown-item" title="Круг"><i class="bi bi-circle"></i> Круг</button></li>
+                            <ul class="dropdown-menu" aria-labelledby="edit-dropdown">
+                                <li><button id="undo-button" class="dropdown-item"><i class="bi bi-arrow-counterclockwise"></i> Отменить</button></li>
+                                <li><button id="redo-button" class="dropdown-item"><i class="bi bi-arrow-clockwise"></i> Вернуть</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button data-tool="copy" class="dropdown-item"><i class="bi bi-files"></i> Копировать</button></li>
+                                <li><button data-tool="paste" class="dropdown-item"><i class="bi bi-clipboard-plus"></i> Вставить</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button id="group-button" data-tool="group" class="dropdown-item" disabled><i class="bi bi-collection"></i> Группировать</button></li>
+                                <li><button id="ungroup-button" data-tool="ungroup" class="dropdown-item" disabled><i class="bi bi-grid-1x2"></i> Разгруппировать</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button data-tool="delete" class="dropdown-item text-danger"><i class="bi bi-trash-fill"></i> Удалить</button></li>
                             </ul>
                         </li>
-                        <li class="nav-item ms-2 border-start ps-2">
-                            <button data-tool="voice" class="btn btn-light" title="Голосовой ввод"><i class="bi bi-mic-fill"></i></button>
+
+                        <!-- Add Dropdown -->
+                        <li class="nav-item dropdown ms-2">
+                            <button class="btn btn-light dropdown-toggle" type="button" id="add-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Добавить">
+                                <i class="bi bi-plus-circle"></i> Добавить
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="add-dropdown">
+                                <li><button data-tool="text" class="dropdown-item"><i class="bi bi-fonts"></i> Текст</button></li>
+                                <li><button data-tool="voice" class="dropdown-item"><i class="bi bi-mic-fill"></i> Голосовой ввод</button></li>
+                                <li><label for="image-upload-desktop" class="dropdown-item" style="cursor: pointer;"><i class="bi bi-image-fill"></i> Картинку</label><input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;"></li>
+                                <li><button data-tool="link" class="dropdown-item"><i class="bi bi-link-45deg"></i> Ссылку</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button data-tool="line" class="dropdown-item"><i class="bi bi-slash-lg"></i> Линию</button></li>
+                                <li><button data-tool="arrow" class="dropdown-item"><i class="bi bi-arrow-right"></i> Стрелку</button></li>
+                                <li><button data-tool="rect" class="dropdown-item"><i class="bi bi-square"></i> Прямоугольник</button></li>
+                                <li><button data-tool="circle" class="dropdown-item"><i class="bi bi-circle"></i> Круг</button></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <button data-tool="text" class="btn btn-light" title="Добавить текст"><i class="bi bi-fonts"></i></button>
+                        
+                        <!-- Tools Dropdown -->
+                        <li class="nav-item dropdown ms-2">
+                            <button class="btn btn-light dropdown-toggle" type="button" id="tools-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Инструменты">
+                                <i class="bi bi-tools"></i> Инструменты
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="tools-dropdown">
+                                <li><button data-tool="eyedropper" class="dropdown-item"><i class="bi bi-eyedropper"></i> Пипетка</button></li>
+                                <li><button id="grid-button" class="dropdown-item"><i class="bi bi-grid-3x3-gap"></i> Сетка</button></li>
+                                <li><button id="show-all-button" class="dropdown-item"><i class="bi bi-search"></i> Показать всё</button></li>
+                            </ul>
                         </li>
-                        <li class="nav-item">
-                            <label for="image-upload-desktop" class="btn btn-light" title="Добавить картинку"><i class="bi bi-image-fill"></i></label>
-                            <input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;">
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="link" class="btn btn-light" title="Добавить ссылку"><i class="bi bi-link-45deg"></i></button>
-                        </li>
-                        <li class="nav-item ms-2 border-start ps-2">
-                            <button id="group-button" data-tool="group" class="btn btn-light" title="Группировать" disabled><i class="bi bi-collection"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button id="ungroup-button" data-tool="ungroup" class="btn btn-light" title="Разгруппировать" disabled><i class="bi bi-grid-1x2"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="copy" class="btn btn-light" title="Копировать выбранное"><i class="bi bi-files"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="paste" class="btn btn-light" title="Вставить"><i class="bi bi-clipboard-plus"></i></button>
-                        </li>
-                        <li class="nav-item">
-                            <button data-tool="delete" class="btn btn-light text-danger" title="Удалить выбранное"><i class="bi bi-trash-fill"></i></button>
-                        </li>
-                        <li class="nav-item ms-3">
+
+                        <!-- Styling Tools -->
+                        <li class="nav-item ms-3 border-start ps-3">
                             <label for="color-picker-desktop" class="form-label small mb-0 me-1">Цвет:</label>
                             <input type="color" id="color-picker-desktop" class="form-control form-control-color color-picker-input" value="#11286E" title="Выбрать цвет">
                         </li>
                         <li class="nav-item ms-3 d-flex align-items-center">
                              <label for="line-width-desktop" class="form-label small mb-0 me-2">Толщина:</label>
-                             <input type="range" id="line-width-desktop" class="form-range line-width-slider" min="1" max="50" value="5">
+                             <input type="range" id="line-width-desktop" class="form-range line-width-slider" min="1" max="50" value="5" style="min-width: 120px;">
                              <span id="line-width-value-desktop" class="ms-2 fw-bold text-nowrap" style="min-width: 25px;">5</span>
                         </li>
                     </ul>
 
                     <!-- Global Controls (History & Pages) -->
                     <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
-                        <!-- History (Desktop only) -->
-                        <li class="nav-item d-none d-lg-flex align-items-center border-start ps-2">
-                            <button id="undo-button" class="btn btn-light" title="Отменить"><i class="bi bi-arrow-counterclockwise"></i></button>
-                            <button id="redo-button" class="btn btn-light" title="Вернуть"><i class="bi bi-arrow-clockwise"></i></button>
-                        </li>
-
-                        <!-- Canvas Tools -->
-                        <li class="nav-item d-flex align-items-center ms-lg-3 border-start ps-2">
-                            <button id="grid-button" class="btn btn-light" title="Показать сетку"><i class="bi bi-grid-3x3-gap"></i></button>
-                            <button id="show-all-button" class="btn btn-light" title="Показать всё"><i class="bi bi-search"></i></button>
+                        <!-- Export -->
+                        <li class="nav-item">
                             <button id="export-button" class="btn btn-light" title="Экспорт в PNG"><i class="bi bi-download"></i></button>
                         </li>
 
                         <!-- Page Navigation -->
-                        <li class="nav-item d-flex align-items-center ms-lg-2">
+                        <li class="nav-item d-flex align-items-center ms-lg-2 border-start ps-2">
                             <button id="prev-page" class="btn btn-light"><i class="bi bi-arrow-left-circle"></i></button>
                             <span id="page-indicator" class="mx-2 text-nowrap">Стр. 1 / 1</span>
                             <button id="next-page" class="btn btn-light"><i class="bi bi-arrow-right-circle"></i></button>
