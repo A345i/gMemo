@@ -196,16 +196,32 @@ document.addEventListener('DOMContentLoaded', () => {
             voiceSaveButton.addEventListener('click', () => {
                 const text = voiceTextResult.value.trim();
                 if (text && voiceInputPosition) {
-                    const textObject = new fabric.IText(text, {
-                        left: voiceInputPosition.x,
-                        top: voiceInputPosition.y,
-                        fill: colorPickers[0].value,
-                        fontSize: 24,
-                        fontFamily: 'Arial',
-                        originX: 'center',
-                        originY: 'center',
-                        uuid: crypto.randomUUID() // --- NEW: Assign UUID ---
-                    });
+                    let textObject;
+                    if (voiceInputPosition.isTextbox) {
+                        // Create a Textbox
+                        textObject = new fabric.Textbox(text, {
+                            left: voiceInputPosition.x,
+                            top: voiceInputPosition.y,
+                            width: voiceInputPosition.width,
+                            height: voiceInputPosition.height,
+                            fill: colorPickers[0].value,
+                            fontSize: 24,
+                            fontFamily: 'Arial',
+                            uuid: crypto.randomUUID()
+                        });
+                    } else {
+                        // Create an IText
+                        textObject = new fabric.IText(text, {
+                            left: voiceInputPosition.x,
+                            top: voiceInputPosition.y,
+                            fill: colorPickers[0].value,
+                            fontSize: 24,
+                            fontFamily: 'Arial',
+                            originX: 'center',
+                            originY: 'center',
+                            uuid: crypto.randomUUID()
+                        });
+                    }
                     fabricCanvas.add(textObject);
                     fabricCanvas.setActiveObject(textObject);
                     fabricCanvas.renderAll();
@@ -653,37 +669,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastPosX = opt.e.clientX;
                 lastPosY = opt.e.clientY;
                 fabricCanvas.setCursor('grabbing');
-            } else if (!isTouching && currentTool === 'text' && !opt.target) {
+            } else if (!isTouching && (currentTool === 'text' || currentTool === 'voice') && !opt.target) {
+                isCreatingText = true;
                 const pointer = fabricCanvas.getPointer(opt.e);
-                const text = new fabric.IText('Текст', { 
-                    left: pointer.x, 
-                    top: pointer.y, 
-                    fill: colorPickers[0].value, 
-                    fontSize: 24, 
-                    fontFamily: 'Arial', 
-                    originX: 'center', 
-                    originY: 'center',
-                    uuid: crypto.randomUUID() // --- NEW: Assign UUID ---
-                });
-                fabricCanvas.add(text);
-                fabricCanvas.setActiveObject(text);
-                text.enterEditing();
-                text.selectAll();
-                setActiveTool('select');
-            } else if (!isTouching && currentTool === 'voice' && !opt.target) {
-                if (!SpeechRecognition) {
-                    alert("Ваш браузер не поддерживает голосовой ввод.");
-                    setActiveTool('select');
-                    return;
-                }
-                const pointer = fabricCanvas.getPointer(opt.e);
-                voiceInputPosition = { x: pointer.x, y: pointer.y };
-                
-                // Очищаем поле и показываем окно
-                voiceTextResult.value = '';
-                textBeforeCurrentSession = '';
-                voiceModal.show();
-                
+                textCreationInfo = {
+                    startX: pointer.x,
+                    startY: pointer.y,
+                    type: currentTool
+                };
             } else if (['line', 'arrow', 'rect', 'circle'].includes(currentTool) && !opt.target) {
                 isDrawingShape = true;
                 const pointer = fabricCanvas.getPointer(opt.e);
@@ -721,6 +714,41 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.requestRenderAll();
                 lastPosX = opt.e.clientX;
                 lastPosY = opt.e.clientY;
+            } else if (isCreatingText && textCreationInfo) {
+                const pointer = fabricCanvas.getPointer(opt.e);
+                const endX = pointer.x;
+                const endY = pointer.y;
+
+                // If shape doesn't exist, create it
+                if (!shapeInProgress) {
+                    // Only start drawing if moved beyond a small threshold
+                    if (Math.abs(endX - textCreationInfo.startX) > 5 || Math.abs(endY - textCreationInfo.startY) > 5) {
+                        shapeInProgress = new fabric.Rect({
+                            left: textCreationInfo.startX,
+                            top: textCreationInfo.startY,
+                            width: 0,
+                            height: 0,
+                            fill: 'rgba(0, 123, 255, 0.2)', // Semi-transparent fill
+                            stroke: 'rgba(0, 123, 255, 0.7)', // Dashed border
+                            strokeDashArray: [5, 5],
+                            strokeWidth: 1,
+                            selectable: false,
+                            evented: false,
+                        });
+                        fabricCanvas.add(shapeInProgress);
+                    }
+                }
+
+                // Update shape dimensions if it exists
+                if (shapeInProgress) {
+                    shapeInProgress.set({
+                        width: Math.abs(endX - textCreationInfo.startX),
+                        height: Math.abs(endY - textCreationInfo.startY),
+                        left: endX < textCreationInfo.startX ? endX : textCreationInfo.startX,
+                        top: endY < textCreationInfo.startY ? endY : textCreationInfo.startY
+                    });
+                    fabricCanvas.renderAll();
+                }
             } else if (isDrawingShape && shapeInProgress) {
                 const pointer = fabricCanvas.getPointer(opt.e);
                 const endX = pointer.x;
@@ -764,6 +792,69 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
                 saveState(); // Save state after panning
+            } else if (isCreatingText) {
+                // If we were drawing a selection box, remove it
+                if (shapeInProgress) {
+                    fabricCanvas.remove(shapeInProgress);
+                }
+
+                const wasDrag = shapeInProgress && shapeInProgress.width > 5 && shapeInProgress.height > 5;
+                const creationType = textCreationInfo.type;
+
+                if (creationType === 'text') {
+                    let textObject;
+                    if (wasDrag) {
+                        // Dragged - create a Textbox
+                        textObject = new fabric.Textbox('Текст', {
+                            left: shapeInProgress.left,
+                            top: shapeInProgress.top,
+                            width: shapeInProgress.width,
+                            height: shapeInProgress.height,
+                            fill: colorPickers[0].value,
+                            fontSize: 24,
+                            fontFamily: 'Arial',
+                            uuid: crypto.randomUUID()
+                        });
+                    } else {
+                        // Clicked - create an IText
+                        textObject = new fabric.IText('Текст', {
+                            left: textCreationInfo.startX,
+                            top: textCreationInfo.startY,
+                            fill: colorPickers[0].value,
+                            fontSize: 24,
+                            fontFamily: 'Arial',
+                            originX: 'center',
+                            originY: 'center',
+                            uuid: crypto.randomUUID()
+                        });
+                    }
+                    fabricCanvas.add(textObject);
+                    fabricCanvas.setActiveObject(textObject);
+                    textObject.enterEditing();
+                    textObject.selectAll();
+                    setActiveTool('select');
+
+                } else if (creationType === 'voice') {
+                    if (!SpeechRecognition) {
+                        alert("Ваш браузер не поддерживает голосовой ввод.");
+                        setActiveTool('select');
+                    } else {
+                        // Store the creation info for the voice modal to use
+                        voiceInputPosition = wasDrag 
+                            ? { x: shapeInProgress.left, y: shapeInProgress.top, width: shapeInProgress.width, height: shapeInProgress.height, isTextbox: true }
+                            : { x: textCreationInfo.startX, y: textCreationInfo.startY, isTextbox: false };
+                        
+                        voiceTextResult.value = '';
+                        textBeforeCurrentSession = '';
+                        voiceModal.show();
+                    }
+                }
+
+                // Reset state
+                isCreatingText = false;
+                textCreationInfo = null;
+                shapeInProgress = null;
+
             } else if (isDrawingShape) {
                 isDrawingShape = false;
                 if (shapeInProgress) {
