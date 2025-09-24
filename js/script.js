@@ -362,7 +362,15 @@ document.addEventListener('DOMContentLoaded', () => {
             showLoader();
             try {
                 // Save final changes before logging out.
-                await saveNotesToSupabase();
+                if (currentUser) {
+                    await saveNotesToSupabase();
+                }
+
+                // Clean up the realtime channel before signing out.
+                if (realtimeChannel) {
+                    supabaseClient.removeChannel(realtimeChannel);
+                    realtimeChannel = null;
+                }
 
                 // Attempt to sign out and capture any potential error.
                 const { error } = await supabaseClient.auth.signOut();
