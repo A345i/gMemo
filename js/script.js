@@ -1398,6 +1398,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         } else {
                             alert('Буфер обмена пуст.');
                         }
+                    } else if (tool === 'grid-mobile') {
+                        toggleGrid();
+                    } else if (tool === 'show-all-mobile') {
+                        showAll();
                     } else if (tool === 'link') {
                         const url = prompt("Введите URL ссылки:", "https://");
                         if (!url) return;
