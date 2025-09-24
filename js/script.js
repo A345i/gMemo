@@ -97,6 +97,8 @@ document.addEventListener('DOMContentLoaded', () => {
         let isDrawingShape = false;
         let shapeInProgress = null;
         let startX, startY;
+        let isCreatingText = false;
+        let textCreationInfo = null;
         let voiceInputPosition = null; // Для хранения координат клика для голосового ввода
         let isGridVisible = false;
         const gridSpacing = 50; // Расстояние между линиями сетки в пиксел��х
