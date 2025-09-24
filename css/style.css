@@ -158,15 +158,9 @@ body {
 @media (max-width: 991.98px) {
     /* Add padding to the bottom of the canvas container to avoid overlap with mobile toolbar */
     #canvas-container {
-        height: calc(100vh - 56px - 60px); /* Full height minus top and bottom bars */
-        transition: height 0.2s ease-in-out;
-    }
-
-    body.draw-tool-active #canvas-container,
-    body.shapes-options-active #canvas-container,
-    body.actions-options-active #canvas-container {
-         /* Adjust height when the drawing options are visible */
-        height: calc(100vh - 56px - 60px - 66px); /* Adjusted for new panel height */
+        height: calc(100vh - 56px); /* Full height minus top bar */
+        padding-bottom: 60px; /* Space for the main mobile toolbar */
+        box-sizing: border-box;
     }
 }
 
