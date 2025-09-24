@@ -776,7 +776,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastPosX = opt.e.clientX;
                 lastPosY = opt.e.clientY;
                 fabricCanvas.setCursor('grabbing');
-            } else if (!isTouching && (currentTool === 'text' || currentTool === 'voice') && !opt.target) {
+            } else if ((currentTool === 'text' || currentTool === 'voice') && !opt.target) {
                 isCreatingText = true;
                 const pointer = fabricCanvas.getPointer(opt.e);
                 textCreationInfo = {
@@ -821,7 +821,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 this.requestRenderAll();
                 lastPosX = opt.e.clientX;
                 lastPosY = opt.e.clientY;
-            } else if (isCreatingText && textCreationInfo) {
+            } else if (isCreatingText && textCreationInfo && !isPanning) {
                 const pointer = fabricCanvas.getPointer(opt.e);
                 const endX = pointer.x;
                 const endY = pointer.y;
@@ -899,7 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
                 saveState(); // Save state after panning
-            } else if (isCreatingText) {
+            } else if (isCreatingText && !isPanning) {
                 // If we were drawing a selection box, remove it
                 if (shapeInProgress) {
                     fabricCanvas.remove(shapeInProgress);
