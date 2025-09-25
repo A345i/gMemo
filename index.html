@@ -166,8 +166,14 @@
                     <!-- Global Controls (History & Pages) -->
                     <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center">
                         <!-- Export -->
-                        <li class="nav-item">
-                            <button id="export-button" class="btn btn-light" title="Экспорт в PNG"><i class="bi bi-download"></i></button>
+                        <li class="nav-item dropdown">
+                            <button class="btn btn-light dropdown-toggle" type="button" id="export-dropdown" data-bs-toggle="dropdown" aria-expanded="false" title="Экспорт">
+                                <i class="bi bi-download"></i>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="export-dropdown">
+                                <li><button id="export-png-button" class="dropdown-item"><i class="bi bi-file-earmark-image"></i> Экспорт в PNG</button></li>
+                                <li><button id="export-svg-button" class="dropdown-item"><i class="bi bi-filetype-svg"></i> Экспорт в SVG</button></li>
+                            </ul>
                         </li>
 
                         <!-- Page Navigation -->
