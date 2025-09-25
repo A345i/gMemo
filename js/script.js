@@ -452,29 +452,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const debouncedSaveLocal = _.debounce(saveNotesLocally, 2000);
 
         // --- Supabase Data Functions ---
-        const getNotesFromSupabase = async () => {
-            const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
-            if (error && error.code !== 'PGRST116') {
-                console.error('Error fetching notes:', error);
-                return null;
+        const calculateChecksum = () => {
+            const objects = fabricCanvas.getObjects();
+            if (objects.length === 0) {
+                return 'empty';
             }
-            if (data && data.profile_text) {
-                try {
-                    const parsedData = JSON.parse(data.profile_text);
-                    // Handle backward compatibility
-                    if (!parsedData.data) {
-                        return {
-                            lastModified: new Date(0).toISOString(), // Old data is considered ancient
-                            data: parsedData
-                        };
-                    }
-                    return parsedData;
-                } catch (e) {
-                    console.error('Error parsing Supabase notes JSON:', e);
-                    return null;
-                }
-            }
-            return null;
+            // Sort by UUID to ensure consistent order
+            const sortedObjects = objects.sort((a, b) => (a.uuid || '').localeCompare(b.uuid || ''));
+            // Create a simple string representation of key properties
+            const repr = sortedObjects.map(o => {
+                return `${o.uuid}:${Math.round(o.left)}:${Math.round(o.top)}:${(o.scaleX || 1).toFixed(2)}:${(o.scaleY || 1).toFixed(2)}:${Math.round(o.angle || 0)}`;
+            }).join(';');
+            return repr;
         };
 
         const stopHeartbeat = () => {
@@ -672,34 +661,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
         };
 
-        const loadNotesFromSupabase = async () => {
-            dataLoaded = false;
+        const getNotesFromSupabase = async () => {
             const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
             if (error && error.code !== 'PGRST116') {
                 console.error('Error fetching notes:', error);
-            } else if (data && data.profile_text) {
+                return null;
+            }
+            if (data && data.profile_text) {
                 try {
-                    const savedData = JSON.parse(data.profile_text);
-                    if (savedData && typeof savedData === 'object') {
-                        if (Array.isArray(savedData.pages)) {
-                            pages = savedData.pages;
-                        }
-                        const savedCurrentPageIndex = savedData.currentPageIndex || 0;
-                        if (savedCurrentPageIndex >= pages.length) {
-                            loadPage(Math.max(0, pages.length - 1));
-                        } else {
-                            loadPage(savedCurrentPageIndex);
-                        }
+                    const parsedData = JSON.parse(data.profile_text);
+                    // Handle backward compatibility
+                    if (!parsedData.data) {
+                        return {
+                            lastModified: new Date(0).toISOString(), // Old data is considered ancient
+                            data: parsedData
+                        };
                     }
+                    return parsedData;
                 } catch (e) {
-                    console.error('Error parsing saved notes JSON:', e);
-                    loadPage(0);
+                    console.error('Error parsing Supabase notes JSON:', e);
+                    return null;
                 }
             }
-            else {
-                loadPage(0);
-            }
-            dataLoaded = true;
+            return null;
         };
 
         const saveNotesToSupabase = async () => {
