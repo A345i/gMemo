@@ -2046,7 +2046,7 @@ document.addEventListener('DOMContentLoaded', () => {
         pageControls.exportSvg.addEventListener('click', exportCanvasSVG);
 
         const exportFullNotes = () => {
-            saveCurrentPage(); // Ensure the very last change is included
+            saveNotesLocally(); // Ensure the very last change is included and saved to localStorage
             const key = currentUser ? `gmemo-user-data-${currentUser.id}` : 'gmemo-local-data';
             const dataString = localStorage.getItem(key);
 
