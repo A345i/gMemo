@@ -397,35 +397,47 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Local Storage Data Functions ---
         const saveNotesLocally = () => {
-            if (currentUser) return; // Don't save locally if logged in
             saveCurrentPage();
-            const saveData = {
+            const key = currentUser ? `gmemo-user-data-${currentUser.id}` : 'gmemo-local-data';
+            const dataToSave = {
                 pages: pages,
                 currentPageIndex: currentPageIndex,
             };
-            localStorage.setItem('gmemo-local-data', JSON.stringify(saveData));
-            saveIndicator.classList.remove('unsaved');
-            saveIndicator.classList.add('saved');
-            setTimeout(() => {
-                saveIndicator.classList.remove('saved');
-            }, 1500);
+            const wrappedData = {
+                lastModified: new Date().toISOString(),
+                data: dataToSave
+            };
+            localStorage.setItem(key, JSON.stringify(wrappedData));
+            
+            // For guest users, show the "saved" indicator immediately.
+            // For logged-in users, this will be handled by the Supabase save function.
+            if (!currentUser) {
+                saveIndicator.classList.remove('unsaved');
+                saveIndicator.classList.add('saved');
+                setTimeout(() => {
+                    saveIndicator.classList.remove('saved');
+                }, 1500);
+            }
         };
 
-        const loadNotesLocally = () => {
-            const localData = localStorage.getItem('gmemo-local-data');
-            if (localData) {
+        const loadNotesLocally = (key = 'gmemo-local-data') => {
+            const localDataString = localStorage.getItem(key);
+            if (localDataString) {
                 try {
-                    const savedData = JSON.parse(localData);
+                    const parsedData = JSON.parse(localDataString);
+                    // Check for new format vs old format
+                    const savedData = parsedData.data ? parsedData.data : parsedData;
+
                     if (savedData && typeof savedData === 'object') {
-                        if (Array.isArray(savedData.pages)) {
-                            pages = savedData.pages;
-                        }
+                        pages = Array.isArray(savedData.pages) ? savedData.pages : [null];
                         const savedCurrentPageIndex = savedData.currentPageIndex || 0;
+                        
                         if (savedCurrentPageIndex >= pages.length) {
                             loadPage(Math.max(0, pages.length - 1));
                         } else {
                             loadPage(savedCurrentPageIndex);
                         }
+                        return parsedData; // Return the full wrapped data for comparison
                     }
                 } catch (e) {
                     console.error('Error parsing local notes JSON:', e);
@@ -434,24 +446,35 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 loadPage(0); // Load a fresh page if no local data
             }
-            dataLoaded = true;
+            return null; // Return null if no data found
         };
 
         const debouncedSaveLocal = _.debounce(saveNotesLocally, 2000);
 
         // --- Supabase Data Functions ---
-        const calculateChecksum = () => {
-            const objects = fabricCanvas.getObjects();
-            if (objects.length === 0) {
-                return 'empty';
+        const getNotesFromSupabase = async () => {
+            const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
+            if (error && error.code !== 'PGRST116') {
+                console.error('Error fetching notes:', error);
+                return null;
             }
-            // Sort by UUID to ensure consistent order
-            const sortedObjects = objects.sort((a, b) => (a.uuid || '').localeCompare(b.uuid || ''));
-            // Create a simple string representation of key properties
-            const repr = sortedObjects.map(o => {
-                return `${o.uuid}:${Math.round(o.left)}:${Math.round(o.top)}:${(o.scaleX || 1).toFixed(2)}:${(o.scaleY || 1).toFixed(2)}:${Math.round(o.angle || 0)}`;
-            }).join(';');
-            return repr;
+            if (data && data.profile_text) {
+                try {
+                    const parsedData = JSON.parse(data.profile_text);
+                    // Handle backward compatibility
+                    if (!parsedData.data) {
+                        return {
+                            lastModified: new Date(0).toISOString(), // Old data is considered ancient
+                            data: parsedData
+                        };
+                    }
+                    return parsedData;
+                } catch (e) {
+                    console.error('Error parsing Supabase notes JSON:', e);
+                    return null;
+                }
+            }
+            return null;
         };
 
         const stopHeartbeat = () => {
@@ -683,17 +706,24 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentUser || !dataLoaded) {
                 return;
             }
-            saveCurrentPage();
-            const saveData = {
-                pages: pages,
-                currentPageIndex: currentPageIndex,
-            };
-            const notesJson = JSON.stringify(saveData);
-            const { error } = await supabaseClient.from('profiles').update({ profile_text: notesJson }).eq('id', currentUser.id);
+            // The local data is already saved by saveState -> saveNotesLocally,
+            // so we just need to read it and send it.
+            const key = `gmemo-user-data-${currentUser.id}`;
+            const localDataString = localStorage.getItem(key);
+
+            if (!localDataString) {
+                console.error("Trying to save to Supabase, but no local data found.");
+                return;
+            }
+
+            // We send the entire wrapped object to Supabase
+            const { error } = await supabaseClient.from('profiles').update({ profile_text: localDataString }).eq('id', currentUser.id);
+            
             if (error) {
                 console.error('Error saving to Supabase:', error);
-            }
-            else {
+                // The indicator remains "unsaved" (red)
+            } else {
+                // Sync successful, show green indicator
                 saveIndicator.classList.remove('unsaved');
                 saveIndicator.classList.add('saved');
                 setTimeout(() => {
@@ -702,26 +732,65 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
         
-        const debouncedSave = _.debounce(saveNotesToSupabase, 3000); // Increased debounce time
+        const debouncedSave = _.debounce(saveNotesToSupabase, 2000);
+
+        const applyLoadedData = (data) => {
+            const content = data.data ? data.data : data; // Handle both wrapped and unwrapped
+            if (content && typeof content === 'object') {
+                pages = Array.isArray(content.pages) ? content.pages : [null];
+                const pageIndex = content.currentPageIndex || 0;
+                loadPage(pageIndex >= pages.length ? Math.max(0, pages.length - 1) : pageIndex);
+            } else {
+                loadPage(0);
+            }
+            dataLoaded = true;
+        };
 
         // --- NEW, ROBUST AUTH HANDLING ---
         const setupAuthenticatedApp = async (session) => {
-            // Prevent re-initialization on token refresh
-            if (currentUser && dataLoaded) { return; } 
+            currentUser = session.user;
+            const localKey = `gmemo-user-data-${currentUser.id}`;
 
-            const localDataExists = localStorage.getItem('gmemo-local-data');
-            if (localDataExists) {
-                if (!confirm("Вы входите в аккаунт. Ваши локальные несохраненные данные будут заменены данными из облака. Продолжить?")) {
-                    // User cancelled login
-                    await supabaseClient.auth.signOut(); // Sign out to prevent being stuck in a weird state
-                    setupLocalApp(); // Go back to local app
-                    return;
+            // 1. Fetch both local and remote data in parallel
+            const [localData, remoteData] = await Promise.all([
+                loadNotesLocally(localKey),
+                getNotesFromSupabase()
+            ]);
+
+            let dataToLoad = null;
+
+            if (localData && remoteData) {
+                const localDate = new Date(localData.lastModified);
+                const remoteDate = new Date(remoteData.lastModified);
+
+                if (localDate > remoteDate) {
+                    if (confirm("Обнаружены локальные изменения, не сохраненные в облаке. Загрузить их в облако? (Отмена загрузит данные из облака)")) {
+                        dataToLoad = localData;
+                        saveNotesToSupabase(); // Immediately sync local changes to cloud
+                    } else {
+                        dataToLoad = remoteData;
+                    }
+                } else {
+                    dataToLoad = remoteData; // Remote is newer or same
                 }
-                localStorage.removeItem('gmemo-local-data'); // Clear local data after confirmation
+            } else if (remoteData) {
+                dataToLoad = remoteData; // Only remote exists
+            } else if (localData) {
+                dataToLoad = localData; // Only local exists
+                saveNotesToSupabase(); // Sync to cloud
             }
 
-            currentUser = session.user;
-            await loadNotesFromSupabase();
+            applyLoadedData(dataToLoad || { data: { pages: [null], currentPageIndex: 0 } });
+            
+            // Always update local storage with the chosen data to keep it in sync
+            if (dataToLoad) {
+                localStorage.setItem(localKey, JSON.stringify(dataToLoad));
+            }
+
+            // Clear guest data if user logs in
+            if (localStorage.getItem('gmemo-local-data')) {
+                localStorage.removeItem('gmemo-local-data');
+            }
             
             // UI Updates for authenticated state
             userEmailDisplay.textContent = currentUser.email;
@@ -732,16 +801,16 @@ document.addEventListener('DOMContentLoaded', () => {
             appContainer.classList.remove('d-none');
             
             resizeCanvas();
-            setActiveTool(null); // Ensure no tool is active on load
+            setActiveTool(null);
             setupRealtimeSubscription(); 
             hideLoader();
         };
 
         const setupLocalApp = () => {
             currentUser = null;
-            dataLoaded = false; // Reset data loaded flag for local mode
+            dataLoaded = false;
             
-            loadNotesLocally();
+            applyLoadedData(loadNotesLocally('gmemo-local-data'));
 
             // UI Updates for local state
             userEmailDisplay.textContent = "Оффлайн";
@@ -775,13 +844,18 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) { 
                 console.error("Error getting session:", error); 
-                setupLocalApp(); // If error, default to local mode
+                setupLocalApp();
                 return; 
             }
             if (session) { 
                 await setupAuthenticatedApp(session); 
-            } else { 
-                setupLocalApp(); // Show local app by default
+            } else {
+                // If no session, check if there's guest data. If not, show login.
+                if (localStorage.getItem('gmemo-local-data')) {
+                    setupLocalApp();
+                } else {
+                    setupLoginPage();
+                }
             }
         };
 
@@ -789,8 +863,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (event === 'SIGNED_IN') { 
                 setupAuthenticatedApp(session); 
             } else if (event === 'SIGNED_OUT') { 
-                // On sign out, clear any local data and go to the login page
-                localStorage.removeItem('gmemo-local-data');
+                // On sign out, go to the login page. Local user data is kept.
                 setupLoginPage(); 
             }
         });
@@ -803,18 +876,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // --- Canvas & App Logic ---
         const saveState = () => { 
-            if (historyLock || isApplyingRemoteChange) return; // --- MODIFIED: Don't save history for remote changes
+            if (historyLock || isApplyingRemoteChange) return;
             saveIndicator.classList.remove('saved');
             saveIndicator.classList.add('unsaved');
             redoStack = []; 
-            const state = fabricCanvas.toJSON(['isLink', 'url', 'uuid']); // --- MODIFIED: Include uuid
-            state.viewportTransform = fabricCanvas.viewportTransform; // Save viewport
+            const state = fabricCanvas.toJSON(['isLink', 'url', 'uuid']);
+            state.viewportTransform = fabricCanvas.viewportTransform;
             history.push(state); 
             updateHistoryButtons(); 
+            
+            // ALWAYS save locally immediately.
+            saveNotesLocally();
+
+            // If online, trigger a debounced save to the cloud.
             if (currentUser) {
                 debouncedSave(); 
-            } else {
-                debouncedSaveLocal();
             }
         };
         
