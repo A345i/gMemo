@@ -53,6 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
             mobile: document.getElementById('line-width-value-mobile')
         };
         const imageUploadInputs = document.querySelectorAll('.image-upload-input');
+        const svgUploadInputs = document.querySelectorAll('.svg-upload-input');
         const historyButtons = { 
             undo: document.getElementById('undo-button'), 
             redo: document.getElementById('redo-button'),
@@ -1779,6 +1780,47 @@ document.addEventListener('DOMContentLoaded', () => {
         widthDecreaseBtn.addEventListener('click', () => updateLineWidth(fabricCanvas.freeDrawingBrush.width - 1));
 
         imageUploadInputs.forEach(input => { input.addEventListener('change', (e) => { const file = e.target.files[0]; if (!file) return; const reader = new FileReader(); reader.onload = (f) => { fabric.Image.fromURL(f.target.result, (img) => { img.scaleToWidth(200); img.uuid = crypto.randomUUID(); fabricCanvas.add(img); broadcastOperation({ type: 'object:added', data: img.toJSON(['uuid']) }); saveState(); }); }; reader.readAsDataURL(file); e.target.value = ''; }); });
+        
+        svgUploadInputs.forEach(input => {
+            input.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (f) => {
+                    const svgString = f.target.result;
+                    fabric.loadSVGFromString(svgString, (objects, options) => {
+                        // Recursive function to assign UUIDs to all nested objects
+                        const assignNewUuids = (obj) => {
+                            obj.uuid = crypto.randomUUID();
+                            if (obj.forEachObject) {
+                                obj.forEachObject(assignNewUuids);
+                            }
+                        };
+
+                        const group = fabric.util.groupSVGElements(objects, options);
+                        assignNewUuids(group); // Assign UUIDs to the group and all its children
+
+                        // Position and scale it to a sensible default
+                        group.scaleToWidth(300);
+                        group.set({
+                            left: 150,
+                            top: 150
+                        });
+
+                        fabricCanvas.add(group);
+                        group.setCoords();
+                        fabricCanvas.setActiveObject(group);
+                        fabricCanvas.renderAll();
+
+                        broadcastOperation({ type: 'object:added', data: group.toJSON(['uuid']) });
+                        saveState();
+                    });
+                };
+                reader.readAsText(file);
+                e.target.value = ''; // Reset input to allow re-uploading the same file
+            });
+        });
+
         window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
         
         const onObjectModified = _.debounce((e) => {
