@@ -2094,13 +2094,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     currentPageIndex = newPageIndex;
 
-                    // Save the new state to local storage immediately
-                    saveNotesLocally(); 
-                    
-                    // Reload the canvas with the new data
+                    // Reload the canvas with the new data FIRST
                     loadPage(currentPageIndex);
 
-                    // If logged in, also sync to the cloud
+                    // Now, save the newly loaded state to local storage
+                    saveNotesLocally(); 
+
+                    // If logged in, also sync the new state to the cloud
                     if (currentUser) {
                         saveNotesToSupabase();
                     }
