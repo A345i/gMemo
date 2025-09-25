@@ -206,3 +206,11 @@ body {
         box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
     }
 }
+
+/* Mobile Text Editing Controls */
+#text-controls {
+    position: absolute;
+    z-index: 1050;
+    display: none; /* Hidden by default */
+    transform: translate(-50%, -120%); /* Position it above the text object */
+}
