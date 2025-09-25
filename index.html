@@ -130,6 +130,7 @@
                                 <li><button data-tool="text" class="dropdown-item"><i class="bi bi-fonts"></i> Текст</button></li>
                                 <li><button data-tool="voice" class="dropdown-item"><i class="bi bi-mic-fill"></i> Голосовой ввод</button></li>
                                 <li><label for="image-upload-desktop" class="dropdown-item" style="cursor: pointer;"><i class="bi bi-image-fill"></i> Картинку</label><input type="file" id="image-upload-desktop" class="image-upload-input" accept="image/*" style="display: none;"></li>
+                                <li><label for="svg-upload-desktop" class="dropdown-item" style="cursor: pointer;"><i class="bi bi-filetype-svg"></i> Импорт SVG</label><input type="file" id="svg-upload-desktop" class="svg-upload-input" accept=".svg" style="display: none;"></li>
                                 <li><button data-tool="link" class="dropdown-item"><i class="bi bi-link-45deg"></i> Ссылку</button></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><button data-tool="line" class="dropdown-item"><i class="bi bi-slash-lg"></i> Линию</button></li>
@@ -214,6 +215,7 @@
             <button data-tool="text" class="btn btn-light" title="Текст"><i class="bi bi-fonts"></i></button>
             <label for="image-upload-mobile" class="btn btn-light" title="Картинка"><i class="bi bi-image-fill"></i></label>
             <input type="file" id="image-upload-mobile" class="image-upload-input" accept="image/*" style="display: none;">
+            <input type="file" id="svg-upload-mobile" class="svg-upload-input" accept=".svg" style="display: none;">
             <button id="mobile-actions-toggle" class="btn btn-light" title="Действия"><i class="bi bi-three-dots-vertical"></i></button>
         </div>
 
@@ -243,6 +245,7 @@
             <button id="mobile-group-button" data-tool="group" class="btn btn-light" title="Группировать" disabled><i class="bi bi-collection"></i></button>
             <button id="mobile-ungroup-button" data-tool="ungroup" class="btn btn-light" title="Разгруппировать" disabled><i class="bi bi-grid-1x2"></i></button>
             <button data-tool="eyedropper" class="btn btn-light" title="Пипетка"><i class="bi bi-eyedropper"></i></button>
+            <label for="svg-upload-mobile" class="btn btn-light" title="Импорт SVG"><i class="bi bi-filetype-svg"></i></label>
             <button data-tool="link" class="btn btn-light" title="Ссылка"><i class="bi bi-link-45deg"></i></button>
             <button data-tool="copy" class="btn btn-light" title="Копировать"><i class="bi bi-files"></i></button>
             <button data-tool="paste" class="btn btn-light" title="Вставить"><i class="bi bi-clipboard-plus"></i></button>
