@@ -66,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
             next: document.getElementById('next-page'), 
             add: document.getElementById('add-page'), 
             delete: document.getElementById('delete-page'), 
-            indicator: document.getElementById('page-indicator'),
-            export: document.getElementById('export-button')
+            exportPng: document.getElementById('export-png-button'),
+            exportSvg: document.getElementById('export-svg-button')
         };
         
         // --- Mobile Draw Options Elements ---
@@ -1593,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', () => {
             saveState();
         }
 
-        function exportCanvas() {
+        function exportCanvasPNG() {
             const dataURL = fabricCanvas.toDataURL({
                 format: 'png',
                 quality: 1.0
@@ -1604,6 +1604,19 @@ document.addEventListener('DOMContentLoaded', () => {
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
+        }
+
+        function exportCanvasSVG() {
+            const svg = fabricCanvas.toSVG();
+            const blob = new Blob([svg], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `gMemo-page-${currentPageIndex + 1}.svg`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         }
 
         const groupButton = document.getElementById('group-button');
@@ -1984,7 +1997,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 hideLoader();
             }
         });
-        pageControls.export.addEventListener('click', exportCanvas);
+        pageControls.exportPng.addEventListener('click', exportCanvasPNG);
+        pageControls.exportSvg.addEventListener('click', exportCanvasSVG);
 
     } catch (e) {
         console.error("A critical error occurred in the application script:", e);
