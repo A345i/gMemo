@@ -66,6 +66,7 @@ document.addEventListener('DOMContentLoaded', () => {
             next: document.getElementById('next-page'), 
             add: document.getElementById('add-page'), 
             delete: document.getElementById('delete-page'), 
+            indicator: document.getElementById('page-indicator'),
             exportPng: document.getElementById('export-png-button'),
             exportSvg: document.getElementById('export-svg-button')
         };
