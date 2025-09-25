@@ -1109,7 +1109,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const newUuid = crypto.randomUUID();
                     if (wasDrag) {
                         // Dragged - create a Textbox
-                        textObject = new fabric.Textbox('Текст', {
+                        textObject = new fabric.Textbox('', {
                             left: shapeInProgress.left,
                             top: shapeInProgress.top,
                             width: shapeInProgress.width,
@@ -1121,7 +1121,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     } else {
                         // Clicked - create an IText
-                        textObject = new fabric.IText('Текст', {
+                        textObject = new fabric.IText('', {
                             left: textCreationInfo.startX,
                             top: textCreationInfo.startY,
                             fill: colorPickers[0].value,
@@ -1830,9 +1830,24 @@ document.addEventListener('DOMContentLoaded', () => {
             e.stopPropagation();
             const activeObject = fabricCanvas.getActiveObject();
             if (activeObject && (activeObject.type === 'i-text' || activeObject.type === 'textbox') && activeObject.isEditing) {
-                navigator.clipboard.readText().then(text => {
-                    if (text) {
-                        activeObject.insertChars(text);
+                navigator.clipboard.readText().then(textToPaste => {
+                    if (textToPaste) {
+                        // Manually handle text insertion for better control
+                        const selectionStart = activeObject.selectionStart;
+                        const selectionEnd = activeObject.selectionEnd;
+                        const originalText = activeObject.text;
+
+                        const newText = originalText.slice(0, selectionStart) + textToPaste + originalText.slice(selectionEnd);
+                        
+                        activeObject.set('text', newText);
+                        
+                        // Move cursor to the end of pasted text
+                        const newCursorPos = selectionStart + textToPaste.length;
+                        activeObject.setSelectionStart(newCursorPos);
+                        activeObject.setSelectionEnd(newCursorPos);
+
+                        fabricCanvas.renderAll();
+                        activeObject.fire('changed'); // Manually fire changed event for history
                     }
                 }).catch(err => console.error('Could not paste text: ', err));
             }
