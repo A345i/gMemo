@@ -42,6 +42,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const logoutButton = document.getElementById('logout-button');
         const showLoginButton = document.getElementById('show-login-button');
         const offlineButton = document.getElementById('offline-button');
+        const exportJsonButton = document.getElementById('export-json-button');
+        const jsonUploadInput = document.getElementById('json-upload-input');
         const saveIndicator = document.getElementById('save-indicator');
         const canvasContainer = document.getElementById('canvas-container');
         const canvasElement = document.getElementById('canvas');
@@ -2042,6 +2044,83 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         pageControls.exportPng.addEventListener('click', exportCanvasPNG);
         pageControls.exportSvg.addEventListener('click', exportCanvasSVG);
+
+        const exportFullNotes = () => {
+            saveCurrentPage(); // Ensure the very last change is included
+            const key = currentUser ? `gmemo-user-data-${currentUser.id}` : 'gmemo-local-data';
+            const dataString = localStorage.getItem(key);
+
+            if (!dataString) {
+                alert("Нет данных для экспорта.");
+                return;
+            }
+
+            const blob = new Blob([dataString], {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `gMemo-backup-${new Date().toISOString().slice(0, 10)}.json`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        };
+
+        const importFullNotes = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            if (!confirm("Вы уверены, что хотите импортировать заметки? Это действие полностью заменит все текущие страницы. Рекомендуется сначала сделать экспорт.")) {
+                e.target.value = '';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+                    
+                    // Basic validation
+                    if (!importedData || !importedData.data || !Array.isArray(importedData.data.pages)) {
+                        throw new Error("Неверный формат файла.");
+                    }
+
+                    showLoader();
+                    // Replace current state
+                    pages = importedData.data.pages;
+                    let newPageIndex = importedData.data.currentPageIndex || 0;
+                    if (newPageIndex >= pages.length) {
+                        newPageIndex = Math.max(0, pages.length - 1);
+                    }
+                    currentPageIndex = newPageIndex;
+
+                    // Save the new state to local storage immediately
+                    saveNotesLocally(); 
+                    
+                    // Reload the canvas with the new data
+                    loadPage(currentPageIndex);
+
+                    // If logged in, also sync to the cloud
+                    if (currentUser) {
+                        saveNotesToSupabase();
+                    }
+                    
+                    hideLoader();
+                    alert("Заметки успешно импортированы!");
+
+                } catch (err) {
+                    console.error("Error importing notes:", err);
+                    alert(`Ошибка импорта: ${err.message}`);
+                    hideLoader();
+                } finally {
+                    e.target.value = ''; // Reset input
+                }
+            };
+            reader.readAsText(file);
+        };
+
+        exportJsonButton.addEventListener('click', exportFullNotes);
+        jsonUploadInput.addEventListener('change', importFullNotes);
 
     } catch (e) {
         console.error("A critical error occurred in the application script:", e);
