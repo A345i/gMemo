@@ -86,6 +86,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const voiceSaveButton = document.getElementById('voice-save-button');
         const voiceRecordButton = document.getElementById('voice-record-button');
 
+        // --- Mobile Text Controls ---
+        const textControls = document.getElementById('text-controls');
+        const copyTextBtn = document.getElementById('copy-text-btn');
+        const pasteTextBtn = document.getElementById('paste-text-btn');
+
 
         // --- App State ---
         let pages = [null];
@@ -1769,6 +1774,70 @@ document.addEventListener('DOMContentLoaded', () => {
             'selection:updated': updateGroupButtons,
             'selection:cleared': updateGroupButtons
         });
+
+        // --- NEW: Mobile Text Controls Logic ---
+        const hideTextControls = () => {
+            if (textControls.style.display !== 'none') {
+                textControls.style.display = 'none';
+            }
+        };
+
+        const showTextControls = (textObject) => {
+            if (!textObject || !textObject.oCoords) {
+                hideTextControls();
+                return;
+            }
+            // Use the top-center coordinate of the object's bounding box
+            const coord = textObject.oCoords.mt;
+            
+            // Position the controls
+            textControls.style.left = `${coord.x}px`;
+            textControls.style.top = `${coord.y}px`;
+            textControls.style.display = 'flex';
+        };
+
+        fabricCanvas.on('text:editing:entered', (e) => {
+            if (e.target) {
+                showTextControls(e.target);
+            }
+        });
+
+        fabricCanvas.on('text:editing:exited', hideTextControls);
+        fabricCanvas.on('selection:cleared', hideTextControls);
+        fabricCanvas.on('object:moving', (e) => {
+            if (e.target.isEditing) showTextControls(e.target);
+            else hideTextControls();
+        });
+        fabricCanvas.on('object:scaling', (e) => {
+            if (e.target.isEditing) showTextControls(e.target);
+        });
+        fabricCanvas.on('mouse:wheel', hideTextControls); // Hide on zoom
+
+        copyTextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const activeObject = fabricCanvas.getActiveObject();
+            if (activeObject && (activeObject.type === 'i-text' || activeObject.type === 'textbox') && activeObject.isEditing) {
+                const selectedText = activeObject.getSelectedText();
+                if (selectedText) {
+                    navigator.clipboard.writeText(selectedText).then(() => {
+                        // Optional: show a brief confirmation
+                    }).catch(err => console.error('Could not copy text: ', err));
+                }
+            }
+        });
+
+        pasteTextBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const activeObject = fabricCanvas.getActiveObject();
+            if (activeObject && (activeObject.type === 'i-text' || activeObject.type === 'textbox') && activeObject.isEditing) {
+                navigator.clipboard.readText().then(text => {
+                    if (text) {
+                        activeObject.insertChars(text);
+                    }
+                }).catch(err => console.error('Could not paste text: ', err));
+            }
+        });
+
 
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
 
