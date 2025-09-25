@@ -719,6 +719,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const debouncedSave = _.debounce(saveNotesToSupabase, 2000);
 
         const applyLoadedData = (data) => {
+            if (!data) {
+                loadPage(0);
+                dataLoaded = true;
+                return;
+            }
             const content = data.data ? data.data : data; // Handle both wrapped and unwrapped
             if (content && typeof content === 'object') {
                 pages = Array.isArray(content.pages) ? content.pages : [null];
@@ -834,12 +839,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (session) { 
                 await setupAuthenticatedApp(session); 
             } else {
-                // If no session, check if there's guest data. If not, show login.
-                if (localStorage.getItem('gmemo-local-data')) {
-                    setupLocalApp();
-                } else {
-                    setupLoginPage();
-                }
+                setupLocalApp(); // Always default to local app if not logged in
             }
         };
 
