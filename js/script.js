@@ -2152,21 +2152,19 @@ document.addEventListener('DOMContentLoaded', () => {
             const cellWidth = screenWidth / zoom;
             const cellHeight = screenHeight / zoom;
 
-            // CORRECTED: Get the current top-left corner of the viewport in canvas coordinates
-            // by dividing the viewport transform values by the current zoom level.
-            const currentTopLeft = {
-                x: -vpt[4] / zoom,
-                y: -vpt[5] / zoom
-            };
+            // 1. Find the canvas coordinate that is currently at the center of the screen.
+            const screenCenter = new fabric.Point(screenWidth / 2, screenHeight / 2);
+            const invVpt = fabric.util.invertTransform(vpt);
+            const canvasCenter = fabric.util.transformPoint(screenCenter, invVpt);
 
-            // Calculate which grid cell we are currently closest to.
-            // This snaps the current position to the grid, preventing cumulative errors.
+            // 2. Determine which grid cell this center point falls into.
+            // Using Math.floor provides a consistent origin for the grid.
             const currentCell = {
-                x: Math.round(currentTopLeft.x / cellWidth),
-                y: Math.round(currentTopLeft.y / cellHeight)
+                x: Math.floor(canvasCenter.x / cellWidth),
+                y: Math.floor(canvasCenter.y / cellHeight)
             };
 
-            // Determine the target cell based on the direction
+            // 3. Determine the target cell based on the direction.
             const targetCell = { x: currentCell.x, y: currentCell.y };
             switch (direction) {
                 case 'left':  targetCell.x -= 1; break;
@@ -2175,16 +2173,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 case 'down':  targetCell.y += 1; break;
             }
 
-            // Calculate the exact top-left coordinate of the target cell
-            const targetPoint = new fabric.Point(
-                targetCell.x * cellWidth,
-                targetCell.y * cellHeight
+            // 4. Calculate the canvas coordinate for the center of the target cell.
+            const targetCenter = new fabric.Point(
+                (targetCell.x * cellWidth) + (cellWidth / 2),
+                (targetCell.y * cellHeight) + (cellHeight / 2)
             );
 
-            // Animate the pan with a smoother easing function and slightly longer duration
-            fabricCanvas.absolutePan(targetPoint, {
-                duration: 600, // Increased duration for a more pronounced effect
-                easing: fabric.util.ease.easeInOutQuint, // Smoother start and end
+            // 5. Calculate the required top-left point for absolutePan to center the view on the targetCenter.
+            const targetTopLeft = new fabric.Point(
+                targetCenter.x - (cellWidth / 2),
+                targetCenter.y - (cellHeight / 2)
+            );
+
+            // Animate the pan to the calculated top-left point.
+            fabricCanvas.absolutePan(targetTopLeft, {
+                duration: 600,
+                easing: fabric.util.ease.easeInOutQuint,
                 onComplete: () => {
                     saveState();
                 }
