@@ -2152,8 +2152,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const cellWidth = screenWidth / zoom;
             const cellHeight = screenHeight / zoom;
 
-            // Current top-left corner of the viewport in canvas coordinates
-            const currentTopLeft = { x: -vpt[4], y: -vpt[5] };
+            // CORRECTED: Get the current top-left corner of the viewport in canvas coordinates
+            // by dividing the viewport transform values by the current zoom level.
+            const currentTopLeft = {
+                x: -vpt[4] / zoom,
+                y: -vpt[5] / zoom
+            };
 
             // Calculate which grid cell we are currently closest to.
             // This snaps the current position to the grid, preventing cumulative errors.
@@ -2177,10 +2181,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 targetCell.y * cellHeight
             );
 
-            // Animate the pan to the target point with a smooth easing function
+            // Animate the pan with a smoother easing function and slightly longer duration
             fabricCanvas.absolutePan(targetPoint, {
-                duration: 500, // Increased duration for a smoother feel
-                easing: fabric.util.ease.easeOutCubic, // Smooth easing out
+                duration: 600, // Increased duration for a more pronounced effect
+                easing: fabric.util.ease.easeInOutQuint, // Smoother start and end
                 onComplete: () => {
                     saveState();
                 }
