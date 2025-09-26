@@ -214,3 +214,37 @@ body {
     display: none; /* Hidden by default */
     transform: translate(-50%, -120%); /* Position it above the text object */
 }
+
+/* --- Navigator Panel Styles --- */
+#navigator-panel {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050;
+    background-color: rgba(248, 249, 250, 0.85); /* Полупрозрачный фон */
+    backdrop-filter: blur(5px); /* Эффект размытия для современных браузеров */
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+
+    /* Стили для анимации */
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none; /* Неактивна, когда невидима */
+}
+
+#navigator-panel.visible {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto; /* Активна, когда видима */
+}
+
+/* Убираем лишние рамки у кнопок внутри панели */
+#navigator-panel .btn {
+    border: none;
+}
