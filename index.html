@@ -261,13 +261,9 @@
         </div>
 
         <!-- Main Canvas Area -->
-        <div id="canvas-container" class="flex-grow-1 position-relative">
+        <main id="canvas-container">
             <canvas id="canvas"></canvas>
-            <!-- Overlay for smooth panning animation -->
-            <div id="pan-overlay">
-                <img id="pan-screenshot" src="" alt="Panning Animation Screenshot"/>
-            </div>
-        </div>
+        </main>
 
         <!-- Mobile Text Editing Controls -->
         <div id="text-controls" class="btn-group bg-light p-1 rounded shadow-sm">
@@ -314,11 +310,12 @@
 
     <!-- Navigator Panel -->
     <div id="navigator-panel">
-        <div id="navigator-drag-handle"></div>
-        <button id="nav-up" class="btn btn-light nav-btn" title="Переместиться вверх"><i class="bi bi-arrow-up"></i></button>
-        <button id="nav-left" class="btn btn-light nav-btn" title="Переместиться влево"><i class="bi bi-arrow-left"></i></button>
-        <button id="nav-right" class="btn btn-light nav-btn" title="Переместиться вправо"><i class="bi bi-arrow-right"></i></button>
-        <button id="nav-down" class="btn btn-light nav-btn" title="Переместиться вниз"><i class="bi bi-arrow-down"></i></button>
+        <button id="nav-up" class="btn btn-light btn-sm"><i class="bi bi-arrow-up"></i></button>
+        <div class="d-flex">
+            <button id="nav-left" class="btn btn-light btn-sm me-1"><i class="bi bi-arrow-left"></i></button>
+            <button id="nav-right" class="btn btn-light btn-sm ms-1"><i class="bi bi-arrow-right"></i></button>
+        </div>
+        <button id="nav-down" class="btn btn-light btn-sm"><i class="bi bi-arrow-down"></i></button>
     </div>
 </body>
 </html>
