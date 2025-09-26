@@ -149,6 +149,8 @@
                                 <li><button data-tool="eyedropper" class="dropdown-item"><i class="bi bi-eyedropper"></i> Пипетка</button></li>
                                 <li><button id="grid-button" class="dropdown-item"><i class="bi bi-grid-3x3-gap"></i> Сетка</button></li>
                                 <li><button id="show-all-button" class="dropdown-item"><i class="bi bi-search"></i> Показать всё</button></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><button id="navigator-tool-button" class="dropdown-item"><i class="bi bi-compass"></i> Навигатор</button></li>
                             </ul>
                         </li>
 
@@ -304,5 +306,15 @@
     <script src="js/bootstrap.bundle.min.js"></script>
     <!-- Custom Script -->
     <script src="js/script.js"></script>
+
+    <!-- Navigator Panel -->
+    <div id="navigator-panel" class="d-none">
+        <button id="nav-up" class="btn btn-light btn-sm"><i class="bi bi-arrow-up"></i></button>
+        <div class="d-flex">
+            <button id="nav-left" class="btn btn-light btn-sm me-1"><i class="bi bi-arrow-left"></i></button>
+            <button id="nav-right" class="btn btn-light btn-sm ms-1"><i class="bi bi-arrow-right"></i></button>
+        </div>
+        <button id="nav-down" class="btn btn-light btn-sm"><i class="bi bi-arrow-down"></i></button>
+    </div>
 </body>
 </html>
