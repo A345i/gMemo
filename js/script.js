@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const canvasContainer = document.getElementById('canvas-container');
         const canvasElement = document.getElementById('canvas');
         const navigatorToolButton = document.getElementById('navigator-tool-button');
+        const mobileNavigatorToolButton = document.getElementById('mobile-navigator-tool-button');
         const navigatorPanel = document.getElementById('navigator-panel');
         const navButtons = {
             up: document.getElementById('nav-up'),
@@ -2135,6 +2136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const toggleNavigatorMode = () => {
             isNavigatorMode = !isNavigatorMode;
             navigatorToolButton.classList.toggle('active', isNavigatorMode);
+            mobileNavigatorToolButton.classList.toggle('active', isNavigatorMode);
             navigatorPanel.classList.toggle('visible', isNavigatorMode);
         };
 
@@ -2186,6 +2188,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         navigatorToolButton.addEventListener('click', toggleNavigatorMode);
+        mobileNavigatorToolButton.addEventListener('click', toggleNavigatorMode);
         navButtons.up.addEventListener('click', () => panToAdjacentScreen('up'));
         navButtons.down.addEventListener('click', () => panToAdjacentScreen('down'));
         navButtons.left.addEventListener('click', () => panToAdjacentScreen('left'));
