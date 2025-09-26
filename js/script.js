@@ -2144,44 +2144,44 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!fabricCanvas) return;
 
             const zoom = fabricCanvas.getZoom();
+            const vpt = fabricCanvas.viewportTransform;
             const screenWidth = canvasContainer.clientWidth;
             const screenHeight = canvasContainer.clientHeight;
-            const vpt = fabricCanvas.viewportTransform;
 
-            const deltaX = screenWidth / zoom;
-            const deltaY = screenHeight / zoom;
+            // The size of one "screen" or "grid cell" in canvas coordinates
+            const cellWidth = screenWidth / zoom;
+            const cellHeight = screenHeight / zoom;
 
-            const targetVpt = {
-                x: vpt[4],
-                y: vpt[5]
+            // Current top-left corner of the viewport in canvas coordinates
+            const currentTopLeft = { x: -vpt[4], y: -vpt[5] };
+
+            // Calculate which grid cell we are currently closest to.
+            // This snaps the current position to the grid, preventing cumulative errors.
+            const currentCell = {
+                x: Math.round(currentTopLeft.x / cellWidth),
+                y: Math.round(currentTopLeft.y / cellHeight)
             };
 
+            // Determine the target cell based on the direction
+            const targetCell = { x: currentCell.x, y: currentCell.y };
             switch (direction) {
-                case 'left':
-                    targetVpt.x += deltaX;
-                    break;
-                case 'right':
-                    targetVpt.x -= deltaX;
-                    break;
-                case 'up':
-                    targetVpt.y += deltaY;
-                    break;
-                case 'down':
-                    targetVpt.y -= deltaY;
-                    break;
+                case 'left':  targetCell.x -= 1; break;
+                case 'right': targetCell.x += 1; break;
+                case 'up':    targetCell.y -= 1; break;
+                case 'down':  targetCell.y += 1; break;
             }
 
-            fabric.util.animate({
-                startValue: { x: vpt[4], y: vpt[5] },
-                endValue: targetVpt,
-                duration: 300,
-                onChange: (value) => {
-                    fabricCanvas.viewportTransform[4] = value.x;
-                    fabricCanvas.viewportTransform[5] = value.y;
-                    fabricCanvas.requestRenderAll();
-                },
+            // Calculate the exact top-left coordinate of the target cell
+            const targetPoint = new fabric.Point(
+                targetCell.x * cellWidth,
+                targetCell.y * cellHeight
+            );
+
+            // Animate the pan to the target point with a smooth easing function
+            fabricCanvas.absolutePan(targetPoint, {
+                duration: 500, // Increased duration for a smoother feel
+                easing: fabric.util.ease.easeOutCubic, // Smooth easing out
                 onComplete: () => {
-                    fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform);
                     saveState();
                 }
             });
