@@ -47,12 +47,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const saveIndicator = document.getElementById('save-indicator');
         const canvasContainer = document.getElementById('canvas-container');
         const canvasElement = document.getElementById('canvas');
-        const panOverlay = document.getElementById('pan-overlay');
-        const panScreenshot = document.getElementById('pan-screenshot');
         const navigatorToolButton = document.getElementById('navigator-tool-button');
         const mobileNavigatorToolButton = document.getElementById('mobile-navigator-tool-button');
         const navigatorPanel = document.getElementById('navigator-panel');
-        const navigatorDragHandle = document.getElementById('navigator-drag-handle');
         const navButtons = {
             up: document.getElementById('nav-up'),
             down: document.getElementById('nav-down'),
@@ -2143,59 +2140,41 @@ document.addEventListener('DOMContentLoaded', () => {
             navigatorPanel.classList.toggle('visible', isNavigatorMode);
         };
 
-        let isPanningAnimationInProgress = false;
         const panToAdjacentScreen = (direction) => {
-            if (isPanningAnimationInProgress) return;
-            isPanningAnimationInProgress = true;
+            if (!fabricCanvas) return;
 
-            // 1. Take a "screenshot" of the current canvas view.
-            const screenshotDataUrl = fabricCanvas.toDataURL({ format: 'png', quality: 0.8 });
-            panScreenshot.src = screenshotDataUrl;
-
-            // Reset screenshot position and prepare for animation.
-            panScreenshot.style.transition = 'none';
-            let endTransform = { x: '0%', y: '0%' };
-
-            switch (direction) {
-                case 'left':  endTransform.x = '100%'; break;
-                case 'right': endTransform.x = '-100%'; break;
-                case 'up':    endTransform.y = '100%'; break;
-                case 'down':  endTransform.y = '-100%'; break;
-            }
-            panScreenshot.style.transform = `translate(0%, 0%)`;
-
-            // Show the screenshot overlay.
-            panOverlay.style.display = 'block';
-
-            // 2. Instantly "teleport" the real canvas to the target position.
-            // This uses the mathematically precise algorithm.
             const screenWidth = canvasContainer.clientWidth;
             const screenHeight = canvasContainer.clientHeight;
             const vpt = fabricCanvas.viewportTransform;
-            const newVpt = [...vpt];
+
+            const startVpt = { x: vpt[4], y: vpt[5] };
+            const endVpt = { x: vpt[4], y: vpt[5] };
 
             switch (direction) {
-                case 'left':  newVpt[4] += screenWidth;  break;
-                case 'right': newVpt[4] -= screenWidth;  break;
-                case 'up':    newVpt[5] += screenHeight; break;
-                case 'down':  newVpt[5] -= screenHeight; break;
+                case 'left':  endVpt.x += screenWidth;  break;
+                case 'right': endVpt.x -= screenWidth;  break;
+                case 'up':    endVpt.y += screenHeight; break;
+                case 'down':  endVpt.y -= screenHeight; break;
             }
-            fabricCanvas.setViewportTransform(newVpt);
-            saveState();
 
-            // 3. Animate the screenshot moving away to reveal the teleported canvas.
-            // We use a short timeout to ensure the browser has rendered the initial state of the screenshot.
-            setTimeout(() => {
-                panScreenshot.style.transition = 'transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-                panScreenshot.style.transform = `translate(${endTransform.x}, ${endTransform.y})`;
-            }, 10);
-
-            // 4. Clean up after the animation is finished.
-            panScreenshot.addEventListener('transitionend', () => {
-                panOverlay.style.display = 'none';
-                panScreenshot.src = ''; // Free up memory
-                isPanningAnimationInProgress = false;
-            }, { once: true });
+            fabric.util.animate({
+                startValue: startVpt,
+                endValue: endVpt,
+                duration: 500,
+                easing: fabric.util.ease.easeInOutQuint,
+                onChange: (value) => {
+                    // Directly mutate the transform array for performance
+                    fabricCanvas.viewportTransform[4] = value.x;
+                    fabricCanvas.viewportTransform[5] = value.y;
+                    // Force a synchronous redraw on every animation frame to prevent flickering
+                    fabricCanvas.renderAll();
+                },
+                onComplete: () => {
+                    // Ensure the final state is perfectly set and saved
+                    fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform);
+                    saveState();
+                }
+            });
         };
 
         navigatorToolButton.addEventListener('click', toggleNavigatorMode);
@@ -2204,67 +2183,6 @@ document.addEventListener('DOMContentLoaded', () => {
         navButtons.down.addEventListener('click', () => panToAdjacentScreen('down'));
         navButtons.left.addEventListener('click', () => panToAdjacentScreen('left'));
         navButtons.right.addEventListener('click', () => panToAdjacentScreen('right'));
-
-        // --- NEW: Draggable Panel Logic ---
-        const makeDraggable = (panel, handle, container) => {
-            let isDragging = false;
-            let active = false;
-            let currentX, currentY, initialX, initialY;
-            let xOffset = 0, yOffset = 0;
-
-            const dragStart = (e) => {
-                initialX = (e.type === 'touchstart') ? e.touches[0].clientX - xOffset : e.clientX - xOffset;
-                initialY = (e.type === 'touchstart') ? e.touches[0].clientY - yOffset : e.clientY - yOffset;
-
-                if (e.target === handle) {
-                    active = true;
-                }
-            }
-
-            const dragEnd = (e) => {
-                initialX = currentX;
-                initialY = currentY;
-                active = false;
-            }
-
-            const drag = (e) => {
-                if (active) {
-                    e.preventDefault();
-                    if (e.type === "touchmove") {
-                        currentX = e.touches[0].clientX - initialX;
-                        currentY = e.touches[0].clientY - initialY;
-                    } else {
-                        currentX = e.clientX - initialX;
-                        currentY = e.clientY - initialY;
-                    }
-
-                    xOffset = currentX;
-                    yOffset = currentY;
-                    
-                    // Constrain to container bounds
-                    const containerRect = container.getBoundingClientRect();
-                    const panelRect = panel.getBoundingClientRect();
-
-                    if (currentX < 0) currentX = 0;
-                    if (currentY < 0) currentY = 0;
-                    if (currentX + panelRect.width > containerRect.width) currentX = containerRect.width - panelRect.width;
-                    if (currentY + panelRect.height > containerRect.height) currentY = containerRect.height - panelRect.height;
-                    
-                    panel.style.transform = `translate3d(${currentX}px, ${currentY}px, 0)`;
-                }
-            }
-            
-            // Attach events
-            container.addEventListener("touchstart", dragStart, false);
-            container.addEventListener("touchend", dragEnd, false);
-            container.addEventListener("touchmove", drag, false);
-
-            container.addEventListener("mousedown", dragStart, false);
-            container.addEventListener("mouseup", dragEnd, false);
-            container.addEventListener("mousemove", drag, false);
-        };
-
-        makeDraggable(navigatorPanel, navigatorDragHandle, canvasContainer);
 
 
     } catch (e) {
