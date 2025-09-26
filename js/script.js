@@ -2257,10 +2257,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // --- Helper to prevent accidental closure ---
-window.addEventListener('beforeunload', (e) => {
-    if (document.getElementById('app-container').classList.contains('d-none')) {
-        return; // Don't show prompt on auth screen
-    }
-    e.preventDefault();
-    e.returnValue = '';
-});
+// window.addEventListener('beforeunload', (e) => {
+//     if (document.getElementById('app-container').classList.contains('d-none')) {
+//         return; // Don't show prompt on auth screen
+//     }
+//     e.preventDefault();
+//     e.returnValue = '';
+// });
