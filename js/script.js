@@ -50,6 +50,57 @@ document.addEventListener('DOMContentLoaded', () => {
         const navigatorToolButton = document.getElementById('navigator-tool-button');
         const mobileNavigatorToolButton = document.getElementById('mobile-navigator-tool-button');
         const navigatorPanel = document.getElementById('navigator-panel');
+
+        // --- Navigator Panel Drag Logic ---
+        let isDragging = false;
+        let offsetX, offsetY;
+
+        const dragStart = (e) => {
+            isDragging = true;
+            // Учитываем возможное смещение из-за transform
+            const rect = navigatorPanel.getBoundingClientRect();
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+            
+            // Предотвращаем выделение текста при перетаскивании
+            e.preventDefault();
+        };
+
+        const dragMove = (e) => {
+            if (!isDragging) return;
+            
+            let newX = e.clientX - offsetX;
+            let newY = e.clientY - offsetY;
+
+            // Ограничиваем движение в пределах окна
+            const panelRect = navigatorPanel.getBoundingClientRect();
+            const bodyRect = document.body.getBoundingClientRect();
+
+            if (newX < 0) newX = 0;
+            if (newY < 0) newY = 0;
+            if (newX + panelRect.width > bodyRect.width) newX = bodyRect.width - panelRect.width;
+            if (newY + panelRect.height > bodyRect.height) newY = bodyRect.height - panelRect.height;
+
+            navigatorPanel.style.left = `${newX}px`;
+            navigatorPanel.style.top = `${newY}px`;
+            // Сбрасываем right и bottom, так как теперь позиционируем по left и top
+            navigatorPanel.style.right = 'auto';
+            navigatorPanel.style.bottom = 'auto';
+        };
+
+        const dragEnd = () => {
+            isDragging = false;
+        };
+
+        navigatorPanel.addEventListener('mousedown', dragStart);
+        document.addEventListener('mousemove', dragMove);
+        document.addEventListener('mouseup', dragEnd);
+        // Для мобильных устройств
+        navigatorPanel.addEventListener('touchstart', (e) => dragStart(e.touches[0]), { passive: false });
+        document.addEventListener('touchmove', (e) => dragMove(e.touches[0]));
+        document.addEventListener('touchend', dragEnd);
+        // --- End Navigator Panel Drag Logic ---
+
         const navButtons = {
             up: document.getElementById('nav-up'),
             down: document.getElementById('nav-down'),
@@ -325,6 +376,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // --- Fabric.js Canvas Initialization ---
         const fabricCanvas = new fabric.Canvas(canvasElement, { isDrawingMode: false, backgroundColor: '#fff', selection: false });
         
+        // --- FIX: Set the correct textBaseline to prevent console warnings ---
+        fabric.Object.prototype.textBaseline = 'alphabetic';
+
         // Sync initial brush settings with UI defaults
         const initialLineWidth = parseInt(lineWidthSliders[0].value, 10);
         const initialColor = colorPickers[0].value;
@@ -2137,6 +2191,13 @@ document.addEventListener('DOMContentLoaded', () => {
             isNavigatorMode = !isNavigatorMode;
             navigatorToolButton.classList.toggle('active', isNavigatorMode);
             mobileNavigatorToolButton.classList.toggle('active', isNavigatorMode);
+            if (isNavigatorMode) {
+                // Reset position every time the navigator is shown
+                navigatorPanel.style.left = 'auto';
+                navigatorPanel.style.top = 'auto';
+                navigatorPanel.style.right = '20px';
+                navigatorPanel.style.bottom = '20px';
+            }
             navigatorPanel.classList.toggle('visible', isNavigatorMode);
         };
 
