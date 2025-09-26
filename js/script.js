@@ -47,6 +47,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const saveIndicator = document.getElementById('save-indicator');
         const canvasContainer = document.getElementById('canvas-container');
         const canvasElement = document.getElementById('canvas');
+        const navigatorToolButton = document.getElementById('navigator-tool-button');
+        const navigatorPanel = document.getElementById('navigator-panel');
+        const navButtons = {
+            up: document.getElementById('nav-up'),
+            down: document.getElementById('nav-down'),
+            left: document.getElementById('nav-left'),
+            right: document.getElementById('nav-right')
+        };
         const toolButtons = document.querySelectorAll('[data-tool]');
         const colorPickers = document.querySelectorAll('.color-picker-input');
         const lineWidthSliders = document.querySelectorAll('.line-width-slider');
@@ -100,6 +108,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let pages = [null];
         let currentPageIndex = 0;
         let currentTool = null;
+        let isNavigatorMode = false;
         let history = [];
         let redoStack = [];
         let historyLock = false;
@@ -2121,6 +2130,67 @@ document.addEventListener('DOMContentLoaded', () => {
 
         exportJsonButton.addEventListener('click', exportFullNotes);
         jsonUploadInput.addEventListener('change', importFullNotes);
+
+        // --- Navigator Tool Logic ---
+        const toggleNavigatorMode = () => {
+            isNavigatorMode = !isNavigatorMode;
+            navigatorToolButton.classList.toggle('active', isNavigatorMode);
+            navigatorPanel.classList.toggle('visible', isNavigatorMode);
+        };
+
+        const panToAdjacentScreen = (direction) => {
+            if (!fabricCanvas) return;
+
+            const zoom = fabricCanvas.getZoom();
+            const screenWidth = canvasContainer.clientWidth;
+            const screenHeight = canvasContainer.clientHeight;
+            const vpt = fabricCanvas.viewportTransform;
+
+            const deltaX = screenWidth / zoom;
+            const deltaY = screenHeight / zoom;
+
+            const targetVpt = {
+                x: vpt[4],
+                y: vpt[5]
+            };
+
+            switch (direction) {
+                case 'left':
+                    targetVpt.x += deltaX;
+                    break;
+                case 'right':
+                    targetVpt.x -= deltaX;
+                    break;
+                case 'up':
+                    targetVpt.y += deltaY;
+                    break;
+                case 'down':
+                    targetVpt.y -= deltaY;
+                    break;
+            }
+
+            fabric.util.animate({
+                startValue: { x: vpt[4], y: vpt[5] },
+                endValue: targetVpt,
+                duration: 300,
+                onChange: (value) => {
+                    fabricCanvas.viewportTransform[4] = value.x;
+                    fabricCanvas.viewportTransform[5] = value.y;
+                    fabricCanvas.requestRenderAll();
+                },
+                onComplete: () => {
+                    fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform);
+                    saveState();
+                }
+            });
+        };
+
+        navigatorToolButton.addEventListener('click', toggleNavigatorMode);
+        navButtons.up.addEventListener('click', () => panToAdjacentScreen('up'));
+        navButtons.down.addEventListener('click', () => panToAdjacentScreen('down'));
+        navButtons.left.addEventListener('click', () => panToAdjacentScreen('left'));
+        navButtons.right.addEventListener('click', () => panToAdjacentScreen('right'));
+
 
     } catch (e) {
         console.error("A critical error occurred in the application script:", e);
