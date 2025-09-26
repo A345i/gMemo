@@ -217,48 +217,31 @@ body {
 
 /* --- Navigator Panel Styles --- */
 #navigator-panel {
-    position: absolute;
-    top: 20px; /* Initial position */
-    left: 20px; /* Initial position */
-    background-color: rgba(255, 255, 255, 0.95);
-    border-radius: 12px;
-    box-shadow: 0 6px 20px rgba(0,0,0,0.2);
-    padding: 10px;
-    z-index: 1050; /* Higher than most UI elements */
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1050;
+    background-color: rgba(248, 249, 250, 0.85); /* Полупрозрачный фон */
+    backdrop-filter: blur(5px); /* Эффект размытия для современных браузеров */
+    border-radius: 0.5rem;
+    padding: 0.5rem;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+
+    /* Стили для анимации */
     opacity: 0;
-    transition: opacity 0.3s ease;
-    pointer-events: none;
-    
-    /* --- NEW: Grid layout for perfect cross shape --- */
-    display: grid;
-    grid-template-columns: 40px 40px 40px;
-    grid-template-rows: 12px 40px 40px; /* Handle row, button rows */
-    grid-template-areas:
-        "handle handle handle"
-        ".      up     ."
-        "left   down   right";
-    gap: 5px;
-    touch-action: none; /* Prevent page scroll on mobile when dragging */
+    transform: translateY(10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none; /* Неактивна, когда невидима */
 }
-
-#navigator-drag-handle {
-    grid-area: handle;
-    cursor: move;
-    width: 100%;
-    height: 12px;
-    background-color: #e0e0e0;
-    border-radius: 6px;
-    margin-bottom: 8px;
-}
-
-#nav-up { grid-area: up; }
-#nav-left { grid-area: left; }
-#nav-right { grid-area: right; }
-#nav-down { grid-area: down; }
 
 #navigator-panel.visible {
     opacity: 1;
-    pointer-events: auto;
+    transform: translateY(0);
+    pointer-events: auto; /* Активна, когда видима */
 }
 
 /* Убираем лишние рамки у кнопок внутри панели */
