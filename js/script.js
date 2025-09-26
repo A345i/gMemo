@@ -2038,6 +2038,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fabricCanvas.on('mouse:dblclick', (options) => { if (options.target) { if (options.target.isLink) { const target = options.target; const newText = prompt("Измените текст ссылки:", target.text); if (newText !== null) target.set('text', newText); const newUrl = prompt("Измените URL:", target.url); if (newUrl !== null) target.set('url', newUrl); fabricCanvas.renderAll(); } else if (options.target.type === 'i-text') { const target = options.target; target.enterEditing(); const selectionStart = target.getSelectionStartFromPointer(options.e); const start = target.findWordBoundaryLeft(selectionStart); const end = target.findWordBoundaryRight(selectionStart); target.setSelectionStart(start); target.setSelectionEnd(end); fabricCanvas.renderAll(); } } });
 
+        // The beforeunload handler was here. It has been removed as per user request
+        // to prevent the "Changes you made may not be saved" dialog.
+        // The app's autosave functionality is considered sufficient.
+
         // --- Page Navigation with IMMEDIATE save & SYNC ---
         pageControls.prev.addEventListener('click', async () => {
             if (currentPageIndex > 0) {
