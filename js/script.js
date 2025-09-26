@@ -2160,15 +2160,17 @@ document.addEventListener('DOMContentLoaded', () => {
             fabric.util.animate({
                 startValue: startVpt,
                 endValue: endVpt,
-                duration: 500, // Using a slightly shorter duration for a crisper feel
+                duration: 500,
                 easing: fabric.util.ease.easeInOutQuint,
                 onChange: (value) => {
+                    // Directly mutate the transform array for performance
                     fabricCanvas.viewportTransform[4] = value.x;
                     fabricCanvas.viewportTransform[5] = value.y;
-                    fabricCanvas.requestRenderAll();
+                    // Force a synchronous redraw on every animation frame to prevent flickering
+                    fabricCanvas.renderAll();
                 },
                 onComplete: () => {
-                    // Ensure the final state is perfectly set
+                    // Ensure the final state is perfectly set and saved
                     fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform);
                     saveState();
                 }
