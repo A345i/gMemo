@@ -276,6 +276,28 @@
         </div>
     </div>
 
+    <!-- Data Conflict Modal -->
+    <div class="modal fade" id="data-conflict-modal" tabindex="-1" aria-labelledby="dataConflictModalLabel" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="dataConflictModalLabel">Конфликт данных</h5>
+                </div>
+                <div class="modal-body">
+                    <p>Мы обнаружили, что у вас есть локальные, несохраненные заметки, которые новее, чем данные в вашем аккаунте.</p>
+                    <p>Какие данные вы хотите использовать?</p>
+                    <div class="alert alert-warning" role="alert">
+                        <strong>Внимание:</strong> Выбранное действие нельзя будет отменить.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-primary" id="conflict-resolve-local">Сохранить локальные изменения (перезапишет данные в облаке)</button>
+                    <button type="button" class="btn btn-secondary" id="conflict-resolve-cloud">Загрузить из облака (удалит локальные изменения)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Voice Input Modal -->
     <div class="modal fade" id="voice-modal" tabindex="-1" aria-labelledby="voiceModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
