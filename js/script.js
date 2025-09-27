@@ -50,6 +50,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const navigatorToolButton = document.getElementById('navigator-tool-button');
         const mobileNavigatorToolButton = document.getElementById('mobile-navigator-tool-button');
         const navigatorPanel = document.getElementById('navigator-panel');
+        const zoomIndicator = document.getElementById('zoom-indicator'); // --- NEW: Zoom indicator element ---
 
         // --- Navigator Panel Drag Logic ---
         let isDragging = false;
@@ -182,6 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let isLeader = false;
         let heartbeatInterval = null;
         const HEARTBEAT_INTERVAL_MS = 10000; // 10 seconds
+        let zoomIndicatorTimeout = null; // --- NEW: Timeout for zoom indicator ---
 
         // --- Voice Recognition Setup ---
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -374,6 +376,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const showLoader = () => loadingOverlay.classList.remove('d-none');
         const hideLoader = () => loadingOverlay.classList.add('d-none');
         
+        // --- NEW: Zoom Indicator Logic ---
+        const updateZoomIndicator = () => {
+            if (!zoomIndicator) return;
+            
+            clearTimeout(zoomIndicatorTimeout);
+            
+            const zoom = fabricCanvas.getZoom();
+            const percentage = Math.round(zoom * 100);
+            zoomIndicator.textContent = `${percentage}%`;
+            zoomIndicator.classList.add('visible');
+
+            zoomIndicatorTimeout = setTimeout(() => {
+                zoomIndicator.classList.remove('visible');
+            }, 2000);
+        };
+
         // --- Fabric.js Canvas Initialization ---
         const fabricCanvas = new fabric.Canvas(canvasElement, { isDrawingMode: false, backgroundColor: '#fff', selection: false });
         
@@ -1029,6 +1047,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (zoom > 20) zoom = 20;
             if (zoom < 0.01) zoom = 0.01;
             fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            updateZoomIndicator(); // --- NEW: Show zoom level ---
             // --- FIX: Recalculate controls after zooming ---
             debouncedSetCoords();
         });
@@ -1404,6 +1423,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Применяем и зум, и панорамирование одновременно
                 fabricCanvas.zoomToPoint(new fabric.Point(touchCenter.x, touchCenter.y), newZoom);
                 fabricCanvas.relativePan(new fabric.Point(deltaX, deltaY));
+                updateZoomIndicator(); // --- NEW: Show zoom level on touch zoom ---
                 
                 fabricCanvas.requestRenderAll();
 
@@ -1667,6 +1687,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fabricCanvas.viewportTransform[4] = value.x;
                         fabricCanvas.viewportTransform[5] = value.y;
                         fabricCanvas.requestRenderAll();
+                        updateZoomIndicator(); // --- NEW: Show zoom level during animation ---
                     },
                     onComplete: () => {
                         fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
@@ -1692,6 +1713,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         fabricCanvas.viewportTransform[4] = value.x;
                         fabricCanvas.viewportTransform[5] = value.y;
                         fabricCanvas.requestRenderAll();
+                        updateZoomIndicator(); // --- NEW: Show zoom level during animation ---
                     },
                     onComplete: () => {
                         isZoomedToFit = true;
@@ -1713,16 +1735,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 duration: 500,
                 easing: fabric.util.ease.easeInOutQuint,
-                onChange: (value) => {
-                    fabricCanvas.zoomToPoint({ x: canvasWidth / 2, y: canvasHeight / 2 }, value.zoom);
-                    fabricCanvas.viewportTransform[4] = value.x;
-                    fabricCanvas.viewportTransform[5] = value.y;
-                    fabricCanvas.requestRenderAll();
-                },
-                onComplete: () => {
-                    isZoomedToFit = true;
-                    saveState();
-                }
+                                    onChange: (value) => {
+                                        fabricCanvas.zoomToPoint({ x: canvasWidth / 2, y: canvasHeight / 2 }, value.zoom);
+                                        fabricCanvas.viewportTransform[4] = value.x;
+                                        fabricCanvas.viewportTransform[5] = value.y;
+                                        fabricCanvas.requestRenderAll();
+                                        updateZoomIndicator(); // --- NEW: Show zoom level during animation ---
+                                    },
+                                    onComplete: () => {
+                                        isZoomedToFit = true;
+                                        saveState();                }
             });
         }
 
