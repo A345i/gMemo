@@ -284,15 +284,30 @@
                     <h5 class="modal-title" id="dataConflictModalLabel">Конфликт данных</h5>
                 </div>
                 <div class="modal-body">
-                    <p>Мы обнаружили, что у вас есть локальные, несохраненные заметки, которые новее, чем данные в вашем аккаунте.</p>
-                    <p>Какие данные вы хотите использовать?</p>
-                    <div class="alert alert-warning" role="alert">
+                    <p>Ваши локальные заметки и заметки в облаке отличаются. Пожалуйста, выберите, какую версию использовать.</p>
+                    <ul class="list-group">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Локальные изменения</strong>
+                                <small class="d-block text-muted" id="conflict-local-timestamp">Дата не определена</small>
+                            </div>
+                            <span class="badge bg-success d-none" id="conflict-local-badge">Новейшие</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong>Облачные данные</strong>
+                                <small class="d-block text-muted" id="conflict-cloud-timestamp">Дата не определена</small>
+                            </div>
+                            <span class="badge bg-success d-none" id="conflict-cloud-badge">Новейшие</span>
+                        </li>
+                    </ul>
+                     <div class="alert alert-warning mt-3" role="alert">
                         <strong>Внимание:</strong> Выбранное действие нельзя будет отменить.
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-primary" id="conflict-resolve-local">Сохранить локальные изменения (перезапишет данные в облаке)</button>
-                    <button type="button" class="btn btn-secondary" id="conflict-resolve-cloud">Загрузить из облака (удалит локальные изменения)</button>
+                <div class="modal-footer d-flex flex-column align-items-stretch">
+                    <button type="button" class="btn btn-primary mb-2" id="conflict-resolve-cloud">Загрузить из облака (рекомендуется)</button>
+                    <button type="button" class="btn btn-secondary" id="conflict-resolve-local">Сохранить локальные изменения (перезапишет данные в облаке)</button>
                 </div>
             </div>
         </div>
