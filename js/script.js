@@ -848,6 +848,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 if (localDate.toISOString() !== remoteDate.toISOString()) {
                     console.log("Conflict detected: Local and remote data have different timestamps.");
+
+                    // Format dates for display
+                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
+                    localTimestampEl.textContent = `Последнее изменение: ${localDate.toLocaleString(undefined, options)}`;
+                    cloudTimestampEl.textContent = `Последнее изменение: ${remoteDate.toLocaleString(undefined, options)}`;
+
+                    // Show "Newest" badge
+                    localBadgeEl.classList.add('d-none');
+                    cloudBadgeEl.classList.add('d-none');
+                    if (localDate > remoteDate) {
+                        localBadgeEl.classList.remove('d-none');
+                    } else {
+                        cloudBadgeEl.classList.remove('d-none');
+                    }
                     
                     const userChoice = new Promise(resolve => {
                         resolveLocalButton.onclick = () => {
@@ -935,6 +949,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const conflictModal = new bootstrap.Modal(conflictModalElement);
         const resolveLocalButton = document.getElementById('conflict-resolve-local');
         const resolveCloudButton = document.getElementById('conflict-resolve-cloud');
+        const localTimestampEl = document.getElementById('conflict-local-timestamp');
+        const cloudTimestampEl = document.getElementById('conflict-cloud-timestamp');
+        const localBadgeEl = document.getElementById('conflict-local-badge');
+        const cloudBadgeEl = document.getElementById('conflict-cloud-badge');
 
 
         // --- NEW, ROBUST AUTH HANDLING ---
