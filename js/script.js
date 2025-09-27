@@ -820,71 +820,95 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentUser) return;
             const localKey = `gmemo-user-data-${currentUser.id}`;
 
-            // 1. Get remote data.
-            const remoteData = await getNotesFromSupabase();
-            
-            // Get current local data.
+            // --- THE SAFE SYNC ALGORITHM ---
+
+            // 1. Get both data sources.
+            const remoteDataPromise = getNotesFromSupabase();
             const localDataString = localStorage.getItem(localKey);
-
-            // Case 1: No remote data found.
-            if (!remoteData) {
-                if (localDataString) {
-                    // Local data exists, push to cloud (existing behavior for user with local data logging in for first time)
-                    console.log("No remote data found. Pushing local data to cloud...");
-                    await saveNotesToSupabase();
-                } else {
-                    // No remote data AND no local data. This is a fresh login on a new device.
-                    console.log("New user detected. Loading welcome screen...");
-                    try {
-                        const response = await fetch('firstscreen.json');
-                        if (!response.ok) throw new Error('Welcome screen file not found.');
-                        let firstScreenData = await response.json();
-
-                        // Handle both wrapped (exported) and direct canvas data formats
-                        if (firstScreenData.data && firstScreenData.data.pages && firstScreenData.data.pages[0]) {
-                            firstScreenData = firstScreenData.data.pages[0];
-                        }
-
-                        // Load the welcome data, save it locally, then push to cloud.
-                        pages = [firstScreenData];
-                        currentPageIndex = 0;
-                        loadPage(0);
-                        saveNotesLocally(); // Creates the local save file
-                        await saveNotesToSupabase(); // Pushes it to the new profile
-
-                    } catch (e) {
-                        console.warn(e.message, "Could not load welcome screen for new user. Starting blank.");
-                        // Fallback to a blank canvas (which is already showing).
-                        applyLoadedData(null);
-                    }
-                }
-                return;
-            }
-
-            // Case 2: No local data found.
-            // This happens on a new device. We apply remote data.
-            if (!localDataString) {
-                console.log("No local data found. Applying remote data...");
-                applyLoadedData(remoteData);
-                localStorage.setItem(localKey, JSON.stringify(remoteData));
-                return;
-            }
+            const localData = localDataString ? JSON.parse(localDataString) : null;
             
-            const localData = JSON.parse(localDataString);
+            let remoteData;
+            try {
+                remoteData = await remoteDataPromise;
+            } catch (e) {
+                // --- NETWORK ERROR SCENARIO ---
+                console.error("Failed to fetch remote data. Aborting sync to prevent data loss.", e);
+                // Do nothing further. The app will continue with local data.
+                return;
+            }
 
-            // Case 3: Both exist. Compare and merge.
-            const localDate = new Date(localData.lastModified);
-            const remoteDate = new Date(remoteData.lastModified);
+            // 2. Analyze the situation and act accordingly.
+            const localExists = localData && localData.data && localData.data.pages.length > 0 && localData.data.pages[0] !== null;
+            const remoteExists = remoteData && remoteData.data && remoteData.data.pages.length > 0 && remoteData.data.pages[0] !== null;
 
-            if (remoteDate > localDate) {
-                console.log("Cloud data is newer. Applying update...");
+            if (localExists && remoteExists) {
+                // --- CONFLICT SCENARIO ---
+                const localDate = new Date(localData.lastModified);
+                const remoteDate = new Date(remoteData.lastModified);
+
+                if (localDate.toISOString() !== remoteDate.toISOString()) {
+                    console.log("Conflict detected: Local and remote data have different timestamps.");
+                    
+                    const userChoice = new Promise(resolve => {
+                        resolveLocalButton.onclick = () => {
+                            console.log("User chose to keep local data (will overwrite cloud).");
+                            resolve('local');
+                        };
+                        resolveCloudButton.onclick = () => {
+                            console.log("User chose to load from cloud (will overwrite local).");
+                            resolve('cloud');
+                        };
+                    });
+
+                    hideLoader();
+                    conflictModal.show();
+                    const choice = await userChoice;
+                    conflictModal.hide();
+                    showLoader();
+
+                    if (choice === 'local') {
+                        await saveNotesToSupabase(); // Push local changes to the cloud.
+                    } else if (choice === 'cloud') {
+                        applyLoadedData(remoteData); // Apply cloud data to the canvas.
+                        localStorage.setItem(localKey, JSON.stringify(remoteData)); // Save it locally.
+                    }
+                } else {
+                    // Data is in sync, nothing to do.
+                    console.log("Data is already in sync.");
+                }
+
+            } else if (localExists && !remoteExists) {
+                // --- SIMPLE PUSH SCENARIO ---
+                console.log("Local data found, but no remote data. Pushing to cloud...");
+                await saveNotesToSupabase();
+
+            } else if (!localExists && remoteExists) {
+                // --- SIMPLE PULL SCENARIO ---
+                console.log("No local data found, but remote data exists. Pulling from cloud...");
                 applyLoadedData(remoteData);
                 localStorage.setItem(localKey, JSON.stringify(remoteData));
-            } else if (localDate > remoteDate) {
-                console.log("Local data is newer. Pushing update to cloud...");
-                await saveNotesToSupabase();
+
             } else {
-                console.log("Data is already in sync.");
+                // --- NEW USER SCENARIO ---
+                console.log("No local or remote data found. Loading welcome screen...");
+                try {
+                    const response = await fetch('firstscreen.json');
+                    if (!response.ok) throw new Error('Welcome screen file not found.');
+                    let firstScreenData = await response.json();
+
+                    if (firstScreenData.data && firstScreenData.data.pages && firstScreenData.data.pages[0]) {
+                        firstScreenData = firstScreenData.data.pages[0];
+                    }
+
+                    pages = [firstScreenData];
+                    currentPageIndex = 0;
+                    loadPage(0);
+                    saveNotesLocally(); // This creates the local save file
+                    await saveNotesToSupabase(); // This pushes it to the new profile
+                } catch (e) {
+                    console.warn(e.message, "Could not load welcome screen. Starting blank.");
+                    applyLoadedData(null);
+                }
             }
         };
 
