@@ -827,7 +827,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     try {
                         const response = await fetch('firstscreen.json');
                         if (!response.ok) throw new Error('Welcome screen file not found.');
-                        const firstScreenData = await response.json();
+                        let firstScreenData = await response.json();
+
+                        // Handle both wrapped (exported) and direct canvas data formats
+                        if (firstScreenData.data && firstScreenData.data.pages && firstScreenData.data.pages[0]) {
+                            firstScreenData = firstScreenData.data.pages[0];
+                        }
 
                         // Load the welcome data, save it locally, then push to cloud.
                         pages = [firstScreenData];
@@ -939,7 +944,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 try {
                     const response = await fetch('firstscreen.json');
                     if (!response.ok) throw new Error('Welcome screen file not found.');
-                    const firstScreenData = await response.json();
+                    let firstScreenData = await response.json();
+
+                    // Handle both wrapped (exported) and direct canvas data formats
+                    if (firstScreenData.data && firstScreenData.data.pages && firstScreenData.data.pages[0]) {
+                        firstScreenData = firstScreenData.data.pages[0];
+                    }
 
                     // Load the welcome data onto the canvas and save it.
                     pages = [firstScreenData];
