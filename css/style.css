@@ -278,3 +278,13 @@ body {
     opacity: 1;
     transform: translateY(0);
 }
+
+/* Reposition Zoom Indicator on Mobile */
+@media (max-width: 991.98px) {
+    #zoom-indicator {
+        top: 76px; /* 56px navbar + 20px margin */
+        left: 20px;
+        right: auto;
+        bottom: auto;
+    }
+}
