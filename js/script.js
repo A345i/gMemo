@@ -466,19 +466,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Attempt to sign out and capture any potential error.
                 const { error } = await supabaseClient.auth.signOut();
 
-                // If there was an error during sign out, the 'SIGNED_OUT' event might not fire.
-                // We need to handle this case explicitly to avoid getting stuck.
+                // If sign out is successful, the onAuthStateChange listener will handle the UI transition.
+                // If there's an error (like "session missing"), the user is effectively already signed out.
+                // We must force the UI to the login page state to recover.
                 if (error) {
-                    console.error('Error during sign out:', error);
-                    alert(`Не удалось выйти из системы: ${error.message}`);
-                    hideLoader(); // Manually hide the loader since the auth listener won't.
+                    console.warn('Error during sign out, but proceeding to login page:', error.message);
+                    alert(`Произошла ошибка при выходе, но сессия была завершена: ${error.message}`);
+                    setupLoginPage(); // Force UI reset
                 }
-                // If sign out is successful, the onAuthStateChange listener will trigger,
-                // which in turn calls setupLoginPage() to reset the UI and hide the loader.
+                // If no error, the 'SIGNED_OUT' event from onAuthStateChange will call setupLoginPage().
             } catch (err) {
                 console.error('Exception during logout process:', err);
                 alert('Произошла непредвиденная ошибка при выходе.');
-                hideLoader();
+                setupLoginPage(); // Also force UI reset on any unexpected exception.
             }
         });
 
