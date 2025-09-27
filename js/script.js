@@ -1983,10 +1983,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Handle Undo/Redo with Ctrl key
             if (e.ctrlKey) {
-                if (e.key === 'z' || e.key === 'Z') {
+                if (e.code === 'KeyZ') { // Use e.code for layout-independent key recognition
                     e.preventDefault();
                     undo();
-                } else if (e.key === 'y' || e.key === 'Y') {
+                } else if (e.code === 'KeyY') { // Use e.code for layout-independent key recognition
                     e.preventDefault();
                     redo();
                 }
