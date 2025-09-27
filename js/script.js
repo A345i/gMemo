@@ -175,6 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let isGridVisible = false;
         const gridSpacing = 50; // Расстояние между линиями сетки в пикселях
         const gridColor = '#e0e0e0';
+        let isZoomedToFit = false; // --- NEW: State for showAll toggle ---
         let realtimeChannel = null; // Для хранения подписки Realtime
         let clientId = crypto.randomUUID(); // --- MODIFIED: Unique ID for this tab/session ---
         let isApplyingRemoteChange = false; // --- NEW: Flag to prevent broadcasting remote changes ---
@@ -1018,6 +1019,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 150);
 
         fabricCanvas.on('mouse:wheel', function(opt) {
+            isZoomedToFit = false; // --- NEW: Reset showAll state on manual zoom ---
             if (!opt.e.altKey) return;
             opt.e.preventDefault();
             opt.e.stopPropagation();
@@ -1236,6 +1238,7 @@ document.addEventListener('DOMContentLoaded', () => {
         fabricCanvas.on('mouse:up', function(opt) {
             if (isPanning && !isTouching) {
                 isPanning = false;
+                isZoomedToFit = false; // --- NEW: Reset showAll state on manual pan ---
                 fabricCanvas.selection = true;
                 fabricCanvas.setCursor('default');
                 // --- FIX: Recalculate controls on pan end ---
@@ -1417,6 +1420,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (isPanning && e.touches.length < 2) {
                 isPanning = false;
+                isZoomedToFit = false; // --- NEW: Reset showAll state on manual touch pan/zoom ---
                 fabricCanvas.selection = (currentTool === 'select'); // Restore selection only if select tool is active
                 if (drawingModeWasActive) {
                     fabricCanvas.isDrawingMode = true;
@@ -1648,39 +1652,78 @@ document.addEventListener('DOMContentLoaded', () => {
         function showAll() {
             fabricCanvas.discardActiveObject();
             const objects = fabricCanvas.getObjects();
-            if (objects.length === 0) {
-                const newVpt = [1, 0, 0, 1, 0, 0];
-                fabricCanvas.setViewportTransform(newVpt);
-                fabricCanvas.renderAll();
-                saveState();
-                return;
-            }
-            const group = new fabric.Group(objects);
-            const aabb = group.getBoundingRect();
             const canvasWidth = fabricCanvas.getWidth();
             const canvasHeight = fabricCanvas.getHeight();
 
+            // If already zoomed to fit, or if there are no objects, reset the view.
+            if (isZoomedToFit || objects.length === 0) {
+                fabric.util.animate({
+                    startValue: { zoom: fabricCanvas.getZoom(), x: fabricCanvas.viewportTransform[4], y: fabricCanvas.viewportTransform[5] },
+                    endValue: { zoom: 1, x: 0, y: 0 },
+                    duration: 500,
+                    easing: fabric.util.ease.easeInOutQuint,
+                    onChange: (value) => {
+                        fabricCanvas.zoomToPoint({ x: canvasWidth / 2, y: canvasHeight / 2 }, value.zoom);
+                        fabricCanvas.viewportTransform[4] = value.x;
+                        fabricCanvas.viewportTransform[5] = value.y;
+                        fabricCanvas.requestRenderAll();
+                    },
+                    onComplete: () => {
+                        fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
+                        isZoomedToFit = false;
+                        saveState();
+                    }
+                });
+                return;
+            }
+
+            const group = new fabric.Group(objects);
+            const aabb = group.getBoundingRect();
+
             // Prevent division by zero or Infinity scale for tiny/zero-dimension objects
             if (aabb.width < 1 || aabb.height < 1) {
-                const newVpt = [1, 0, 0, 1, 0, 0]; // Reset zoom to 1
-                // Center view on the small object
-                newVpt[4] = (canvasWidth / 2) - (aabb.left + aabb.width / 2);
-                newVpt[5] = (canvasHeight / 2) - (aabb.top + aabb.height / 2);
-                fabricCanvas.setViewportTransform(newVpt);
-                fabricCanvas.renderAll();
-                saveState();
+                fabric.util.animate({
+                    startValue: { zoom: fabricCanvas.getZoom(), x: fabricCanvas.viewportTransform[4], y: fabricCanvas.viewportTransform[5] },
+                    endValue: { zoom: 1, x: (canvasWidth / 2) - (aabb.left + aabb.width / 2), y: (canvasHeight / 2) - (aabb.top + aabb.height / 2) },
+                    duration: 500,
+                    easing: fabric.util.ease.easeInOutQuint,
+                    onChange: (value) => {
+                        fabricCanvas.zoomToPoint({ x: canvasWidth / 2, y: canvasHeight / 2 }, value.zoom);
+                        fabricCanvas.viewportTransform[4] = value.x;
+                        fabricCanvas.viewportTransform[5] = value.y;
+                        fabricCanvas.requestRenderAll();
+                    },
+                    onComplete: () => {
+                        isZoomedToFit = true;
+                        saveState();
+                    }
+                });
                 return;
             }
 
             const scale = Math.min(canvasWidth / aabb.width, canvasHeight / aabb.height) * 0.95;
-            const newVpt = [...fabricCanvas.viewportTransform];
-            newVpt[0] = scale;
-            newVpt[3] = scale;
-            newVpt[4] = (canvasWidth - (aabb.width * scale)) / 2 - (aabb.left * scale);
-            newVpt[5] = (canvasHeight - (aabb.height * scale)) / 2 - (aabb.top * scale);
-            fabricCanvas.setViewportTransform(newVpt);
-            fabricCanvas.renderAll();
-            saveState();
+            const targetCenter = group.getCenterPoint();
+            
+            fabric.util.animate({
+                startValue: { zoom: fabricCanvas.getZoom(), x: fabricCanvas.viewportTransform[4], y: fabricCanvas.viewportTransform[5] },
+                endValue: { 
+                    zoom: scale, 
+                    x: (canvasWidth / 2) - (targetCenter.x * scale),
+                    y: (canvasHeight / 2) - (targetCenter.y * scale)
+                },
+                duration: 500,
+                easing: fabric.util.ease.easeInOutQuint,
+                onChange: (value) => {
+                    fabricCanvas.zoomToPoint({ x: canvasWidth / 2, y: canvasHeight / 2 }, value.zoom);
+                    fabricCanvas.viewportTransform[4] = value.x;
+                    fabricCanvas.viewportTransform[5] = value.y;
+                    fabricCanvas.requestRenderAll();
+                },
+                onComplete: () => {
+                    isZoomedToFit = true;
+                    saveState();
+                }
+            });
         }
 
         function exportCanvasPNG() {
@@ -2259,6 +2302,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 onComplete: () => {
                     // Ensure the final state is perfectly set and saved
                     fabricCanvas.setViewportTransform(fabricCanvas.viewportTransform);
+                    isZoomedToFit = false; // --- NEW: Reset showAll state on pan ---
                     saveState();
                 }
             });
