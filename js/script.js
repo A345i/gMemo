@@ -816,11 +816,31 @@ document.addEventListener('DOMContentLoaded', () => {
             const localDataString = localStorage.getItem(localKey);
 
             // Case 1: No remote data found.
-            // This could be a new user or an error. We push local data if it exists.
             if (!remoteData) {
                 if (localDataString) {
+                    // Local data exists, push to cloud (existing behavior for user with local data logging in for first time)
                     console.log("No remote data found. Pushing local data to cloud...");
                     await saveNotesToSupabase();
+                } else {
+                    // No remote data AND no local data. This is a fresh login on a new device.
+                    console.log("New user detected. Loading welcome screen...");
+                    try {
+                        const response = await fetch('firstscreen.json');
+                        if (!response.ok) throw new Error('Welcome screen file not found.');
+                        const firstScreenData = await response.json();
+
+                        // Load the welcome data, save it locally, then push to cloud.
+                        pages = [firstScreenData];
+                        currentPageIndex = 0;
+                        loadPage(0);
+                        saveNotesLocally(); // Creates the local save file
+                        await saveNotesToSupabase(); // Pushes it to the new profile
+
+                    } catch (e) {
+                        console.warn(e.message, "Could not load welcome screen for new user. Starting blank.");
+                        // Fallback to a blank canvas (which is already showing).
+                        applyLoadedData(null);
+                    }
                 }
                 return;
             }
@@ -904,11 +924,35 @@ document.addEventListener('DOMContentLoaded', () => {
             syncWithSupabase(); // This is now a non-blocking background task.
         };
 
-        const setupLocalApp = () => {
+        const setupLocalApp = async () => {
             currentUser = null;
             dataLoaded = false;
-            
-            applyLoadedData(loadNotesLocally('gmemo-local-data'));
+
+            const localKey = 'gmemo-local-data';
+            const localDataString = localStorage.getItem(localKey);
+
+            if (localDataString) {
+                // Existing offline user, load as usual.
+                applyLoadedData(loadNotesLocally(localKey));
+            } else {
+                // New offline user, try to load the welcome screen.
+                try {
+                    const response = await fetch('firstscreen.json');
+                    if (!response.ok) throw new Error('Welcome screen file not found.');
+                    const firstScreenData = await response.json();
+
+                    // Load the welcome data onto the canvas and save it.
+                    pages = [firstScreenData];
+                    currentPageIndex = 0;
+                    loadPage(0);
+                    saveNotesLocally(); // This populates localStorage for the next visit.
+                    dataLoaded = true;
+                } catch (e) {
+                    console.warn(e.message, "Starting with a blank canvas instead.");
+                    // Fallback to a blank canvas if fetch fails.
+                    applyLoadedData(null);
+                }
+            }
 
             // UI Updates for local state
             userEmailDisplay.textContent = "Оффлайн";
@@ -917,7 +961,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             authContainer.classList.add('d-none');
             appContainer.classList.remove('d-none');
-            
+
             resizeCanvas();
             setActiveTool(null);
             hideLoader();
@@ -942,13 +986,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const { data: { session }, error } = await supabaseClient.auth.getSession();
             if (error) { 
                 console.error("Error getting session:", error); 
-                setupLocalApp();
+                await setupLocalApp();
                 return; 
             }
             if (session) { 
                 await setupAuthenticatedApp(session); 
             } else {
-                setupLocalApp(); // Always default to local app if not logged in
+                await setupLocalApp(); // Always default to local app if not logged in
             }
         };
 
