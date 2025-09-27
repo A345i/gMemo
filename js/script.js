@@ -1975,8 +1975,30 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         });
 
-        window.addEventListener('keydown', (e) => { if ((e.key === 'Delete' || e.key === 'Backspace') && !fabricCanvas.getActiveObject()?.isEditing) { document.querySelector('[data-tool="delete"]').click(); } });
-        
+        window.addEventListener('keydown', (e) => {
+            // Do not interfere with text editing
+            if (fabricCanvas.getActiveObject()?.isEditing) {
+                return;
+            }
+
+            // Handle Undo/Redo with Ctrl key
+            if (e.ctrlKey) {
+                if (e.key === 'z' || e.key === 'Z') {
+                    e.preventDefault();
+                    undo();
+                } else if (e.key === 'y' || e.key === 'Y') {
+                    e.preventDefault();
+                    redo();
+                }
+                return; // Exit after handling Ctrl combinations
+            }
+
+            // Handle Delete/Backspace for objects
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                document.querySelector('[data-tool="delete"]').click();
+            }
+        });
+
         const onObjectModified = _.debounce((e) => {
             if (!e.target || isApplyingRemoteChange) return;
             const target = e.target;
