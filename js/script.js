@@ -1047,6 +1047,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (zoom > 20) zoom = 20;
             if (zoom < 0.01) zoom = 0.01;
             fabricCanvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
+            this.requestRenderAll(); // Force a re-render after zooming
             updateZoomIndicator(); // --- NEW: Show zoom level ---
             // --- FIX: Recalculate controls after zooming ---
             debouncedSetCoords();
