@@ -786,6 +786,53 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const debouncedSave = _.debounce(saveNotesToSupabase, 2000);
 
+        const syncWithSupabase = async () => {
+            if (!currentUser) return;
+            const localKey = `gmemo-user-data-${currentUser.id}`;
+
+            // 1. Get remote data.
+            const remoteData = await getNotesFromSupabase();
+            
+            // Get current local data.
+            const localDataString = localStorage.getItem(localKey);
+
+            // Case 1: No remote data found.
+            // This could be a new user or an error. We push local data if it exists.
+            if (!remoteData) {
+                if (localDataString) {
+                    console.log("No remote data found. Pushing local data to cloud...");
+                    await saveNotesToSupabase();
+                }
+                return;
+            }
+
+            // Case 2: No local data found.
+            // This happens on a new device. We apply remote data.
+            if (!localDataString) {
+                console.log("No local data found. Applying remote data...");
+                applyLoadedData(remoteData);
+                localStorage.setItem(localKey, JSON.stringify(remoteData));
+                return;
+            }
+            
+            const localData = JSON.parse(localDataString);
+
+            // Case 3: Both exist. Compare and merge.
+            const localDate = new Date(localData.lastModified);
+            const remoteDate = new Date(remoteData.lastModified);
+
+            if (remoteDate > localDate) {
+                console.log("Cloud data is newer. Applying update...");
+                applyLoadedData(remoteData);
+                localStorage.setItem(localKey, JSON.stringify(remoteData));
+            } else if (localDate > remoteDate) {
+                console.log("Local data is newer. Pushing update to cloud...");
+                await saveNotesToSupabase();
+            } else {
+                console.log("Data is already in sync.");
+            }
+        };
+
         const applyLoadedData = (data) => {
             if (!data) {
                 loadPage(0);
@@ -808,48 +855,18 @@ document.addEventListener('DOMContentLoaded', () => {
             currentUser = session.user;
             const localKey = `gmemo-user-data-${currentUser.id}`;
 
-            // 1. Fetch both local and remote data in parallel
-            const [localData, remoteData] = await Promise.all([
-                loadNotesLocally(localKey),
-                getNotesFromSupabase()
-            ]);
+            // 1. Load local data immediately.
+            const localData = loadNotesLocally(localKey);
 
-            let dataToLoad = null;
-
-            if (localData && remoteData) {
-                const localDate = new Date(localData.lastModified);
-                const remoteDate = new Date(remoteData.lastModified);
-
-                if (localDate > remoteDate) {
-                    if (confirm("Обнаружены локальные изменения, не сохраненные в облаке. Загрузить их в облако? (Отмена загрузит данные из облака)")) {
-                        dataToLoad = localData;
-                        saveNotesToSupabase(); // Immediately sync local changes to cloud
-                    } else {
-                        dataToLoad = remoteData;
-                    }
-                } else {
-                    dataToLoad = remoteData; // Remote is newer or same
-                }
-            } else if (remoteData) {
-                dataToLoad = remoteData; // Only remote exists
-            } else if (localData) {
-                dataToLoad = localData; // Only local exists
-                saveNotesToSupabase(); // Sync to cloud
-            }
-
-            applyLoadedData(dataToLoad || { data: { pages: [null], currentPageIndex: 0 } });
-            
-            // Always update local storage with the chosen data to keep it in sync
-            if (dataToLoad) {
-                localStorage.setItem(localKey, JSON.stringify(dataToLoad));
-            }
+            // 2. Render the app with local data (or a fresh state).
+            applyLoadedData(localData || { data: { pages: [null], currentPageIndex: 0 } });
 
             // Clear guest data if user logs in
             if (localStorage.getItem('gmemo-local-data')) {
                 localStorage.removeItem('gmemo-local-data');
             }
             
-            // UI Updates for authenticated state
+            // 3. Update UI to authenticated state
             userEmailDisplay.textContent = currentUser.email;
             logoutButton.classList.remove('d-none');
             showLoginButton.classList.add('d-none');
@@ -859,8 +876,13 @@ document.addEventListener('DOMContentLoaded', () => {
             
             resizeCanvas();
             setActiveTool(null);
+            // Hide loader as soon as local data is shown.
+            // The sync process will happen in the background.
+            hideLoader(); 
+
+            // 4. Setup real-time and start background sync
             setupRealtimeSubscription(); 
-            hideLoader();
+            syncWithSupabase(); // This is now a non-blocking background task.
         };
 
         const setupLocalApp = () => {
