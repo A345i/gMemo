@@ -635,15 +635,26 @@ document.addEventListener('DOMContentLoaded', () => {
                         updatePageIndicator();
                         break;
                     case 'page:delete':
-                        saveCurrentPage();
-                        pages.splice(payload.data.deletedPageIndex, 1);
-                        if (currentPageIndex === payload.data.deletedPageIndex) {
-                             loadPage(payload.data.newPageIndex);
+                        // Save any pending changes on the current page before it's potentially removed
+                        saveCurrentPage(); 
+                        
+                        const { deletedPageIndex, newPageIndex } = payload.data;
+
+                        // Remove the page from the local array
+                        if (deletedPageIndex >= 0 && deletedPageIndex < pages.length) {
+                            pages.splice(deletedPageIndex, 1);
+                        }
+
+                        // Check if the current page was the one deleted
+                        if (currentPageIndex === deletedPageIndex) {
+                            loadPage(newPageIndex); // Load the new page designated by the sender
                         } else {
-                            if (currentPageIndex > payload.data.deletedPageIndex) {
+                            // If a page before the current one was deleted, we need to decrement the index
+                            if (currentPageIndex > deletedPageIndex) {
                                 currentPageIndex--;
                             }
-                            updatePageIndicator();
+                            // Update the UI without reloading the canvas content
+                            updatePageIndicator(); 
                         }
                         break;
                     
