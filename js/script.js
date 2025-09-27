@@ -898,18 +898,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const setupAuthenticatedApp = async (session) => {
             currentUser = session.user;
             const localKey = `gmemo-user-data-${currentUser.id}`;
+            const guestKey = 'gmemo-local-data';
 
-            // 1. Load local data immediately.
+            // --- MIGRATION LOGIC ---
+            // If guest data exists and user-specific data doesn't, migrate it.
+            const guestDataString = localStorage.getItem(guestKey);
+            if (guestDataString && !localStorage.getItem(localKey)) {
+                console.log("Migrating offline guest data to new user account...");
+                localStorage.setItem(localKey, guestDataString);
+                localStorage.removeItem(guestKey);
+            }
+            // --- END MIGRATION LOGIC ---
+
+            // 1. Load local data immediately (it will now find the migrated data if it existed).
             const localData = loadNotesLocally(localKey);
 
             // 2. Render the app with local data (or a fresh state).
             applyLoadedData(localData || { data: { pages: [null], currentPageIndex: 0 } });
 
-            // Clear guest data if user logs in
-            if (localStorage.getItem('gmemo-local-data')) {
-                localStorage.removeItem('gmemo-local-data');
-            }
-            
             // 3. Update UI to authenticated state
             userEmailDisplay.textContent = currentUser.email;
             logoutButton.classList.remove('d-none');
@@ -926,7 +932,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 4. Setup real-time and start background sync
             setupRealtimeSubscription(); 
-            syncWithSupabase(); // This is now a non-blocking background task.
+            syncWithSupabase(); // This will now correctly find the migrated data and push it.
         };
 
         const setupLocalApp = async () => {
