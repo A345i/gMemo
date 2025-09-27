@@ -872,6 +872,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         applyLoadedData(remoteData); // Apply cloud data to the canvas.
                         localStorage.setItem(localKey, JSON.stringify(remoteData)); // Save it locally.
                     }
+                    hideLoader(); // Hide the spinner after the operation is complete
                 } else {
                     // Data is in sync, nothing to do.
                     console.log("Data is already in sync.");
