@@ -847,46 +847,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const remoteDate = new Date(remoteData.lastModified);
 
                 if (localDate.toISOString() !== remoteDate.toISOString()) {
-                    console.log("Conflict detected: Local and remote data have different timestamps.");
-
-                    // Format dates for display
-                    const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' };
-                    localTimestampEl.textContent = `Последнее изменение: ${localDate.toLocaleString(undefined, options)}`;
-                    cloudTimestampEl.textContent = `Последнее изменение: ${remoteDate.toLocaleString(undefined, options)}`;
-
-                    // Show "Newest" badge
-                    localBadgeEl.classList.add('d-none');
-                    cloudBadgeEl.classList.add('d-none');
-                    if (localDate > remoteDate) {
-                        localBadgeEl.classList.remove('d-none');
+                    // --- Automatic Sync Logic ---
+                    if (remoteDate > localDate) {
+                        // Cloud data is newer, silently apply it.
+                        console.log("Cloud data is newer. Applying remote changes automatically.");
+                        applyLoadedData(remoteData);
+                        localStorage.setItem(localKey, JSON.stringify(remoteData));
                     } else {
-                        cloudBadgeEl.classList.remove('d-none');
+                        // Local data is newer, silently push it.
+                        console.log("Local data is newer. Pushing local changes to the cloud automatically.");
+                        await saveNotesToSupabase();
                     }
-                    
-                    const userChoice = new Promise(resolve => {
-                        resolveLocalButton.onclick = () => {
-                            console.log("User chose to keep local data (will overwrite cloud).");
-                            resolve('local');
-                        };
-                        resolveCloudButton.onclick = () => {
-                            console.log("User chose to load from cloud (will overwrite local).");
-                            resolve('cloud');
-                        };
-                    });
-
-                    hideLoader();
-                    conflictModal.show();
-                    const choice = await userChoice;
-                    conflictModal.hide();
-                    showLoader();
-
-                    if (choice === 'local') {
-                        await saveNotesToSupabase(); // Push local changes to the cloud.
-                    } else if (choice === 'cloud') {
-                        applyLoadedData(remoteData); // Apply cloud data to the canvas.
-                        localStorage.setItem(localKey, JSON.stringify(remoteData)); // Save it locally.
-                    }
-                    hideLoader(); // Hide the spinner after the operation is complete
                 } else {
                     // Data is in sync, nothing to do.
                     console.log("Data is already in sync.");
