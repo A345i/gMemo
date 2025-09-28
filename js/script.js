@@ -1112,26 +1112,19 @@ document.addEventListener('DOMContentLoaded', () => {
             hideLoader();
         };
 
-        const initializeApp = async () => {
+        const initializeApp = () => {
             showLoader();
-            const { data: { session }, error } = await supabaseClient.auth.getSession();
-            if (error) { 
-                console.error("Error getting session:", error); 
-                await setupLocalApp();
-                return; 
-            }
-            if (session) { 
-                await setupAuthenticatedApp(session); 
-            } else {
-                await setupLocalApp(); // Always default to local app if not logged in
-            }
+            // The onAuthStateChange listener below will handle the rest,
+            // firing immediately with a cached session if available,
+            // or after the user logs in.
         };
 
-        supabaseClient.auth.onAuthStateChange((event, session) => {
+        supabaseClient.auth.onAuthStateChange(async (event, session) => {
             if (event === 'SIGNED_IN') { 
-                setupAuthenticatedApp(session); 
+                await setupAuthenticatedApp(session); 
             } else if (event === 'SIGNED_OUT') { 
-                // On sign out, go to the login page. Local user data is kept.
+                // When there's no session, show the login page.
+                // The login page has an "offline" button that calls setupLocalApp.
                 setupLoginPage(); 
             }
         });
