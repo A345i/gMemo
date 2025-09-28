@@ -1967,7 +1967,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const activeObject = e.target;
                 activeObject.bringToFront();
                 fabricCanvas.renderAll();
-                saveState(); // Save the new object order
             }
         };
 
