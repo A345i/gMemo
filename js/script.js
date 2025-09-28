@@ -932,49 +932,66 @@ document.addEventListener('DOMContentLoaded', () => {
             const localKey = `gmemo-user-data-${currentUser.id}`;
             const guestKey = 'gmemo-local-data';
 
-            // --- NEW, SAFE MIGRATION/SYNC LOGIC ---
-            // 1. Always prioritize fetching from the cloud first on login.
-            const remoteData = await getNotesFromSupabase();
+            // --- NEW Local-First Logic ---
 
-            if (remoteData) {
-                // SCENARIO A: User has data in the cloud. Cloud data is king.
-                console.log("Cloud data found. Applying it and ignoring local guest data.");
-                applyLoadedData(remoteData);
-                localStorage.setItem(localKey, JSON.stringify(remoteData));
-                localStorage.removeItem(guestKey); // Clean up any old guest data.
-            } else {
-                // SCENARIO B: No data in the cloud (brand new user).
-                console.log("No cloud data found. Checking for local guest data to migrate.");
-                const guestDataString = localStorage.getItem(guestKey);
-
-                if (guestDataString) {
-                    // Migrate the guest data to the user's account.
-                    console.log("Migrating offline guest data to new user account.");
-                    const guestData = JSON.parse(guestDataString);
-                    applyLoadedData(guestData);
-                    localStorage.setItem(localKey, guestDataString);
-                    localStorage.removeItem(guestKey);
-                    await saveNotesToSupabase(); // Push the migrated data to the cloud.
-                } else {
-                    // No cloud data and no guest data, start fresh. This will be handled
-                    // by the sync function creating a welcome screen if needed.
-                    await syncWithSupabase();
-                    const localData = loadNotesLocally(localKey);
-                    applyLoadedData(localData);
-                }
-            }
-
-            // --- UI SETUP ---
+            // Prepare the main app UI structure first
             userEmailDisplay.textContent = currentUser.email;
             logoutButton.classList.remove('d-none');
             showLoginButton.classList.add('d-none');
             authContainer.classList.add('d-none');
             appContainer.classList.remove('d-none');
             resizeCanvas();
-            
-            // Setup realtime and hide loader
-            setupRealtimeSubscription();
-            hideLoader();
+
+            const userDataString = localStorage.getItem(localKey);
+
+            if (userDataString) {
+                // --- NORMAL LAUNCH ---
+                // Data exists locally, so load it instantly.
+                console.log("Local user data found. Loading instantly.");
+                applyLoadedData(JSON.parse(userDataString));
+                hideLoader(); // Hide loader immediately, app is usable.
+
+                // Then, sync in the background.
+                setupRealtimeSubscription();
+                syncWithSupabase(); // This will run in the background and handle any updates.
+
+            } else {
+                // --- TRUE FIRST LOGIN on a new device ---
+                // No local data exists for this user. We must wait for the first sync from the cloud.
+                // This is the only case where we block the UI waiting for the network.
+                console.log("First login on this device. Performing initial sync...");
+                
+                const remoteData = await getNotesFromSupabase();
+
+                if (remoteData) {
+                    // Cloud data exists, it's the source of truth.
+                    console.log("Cloud data found. Applying it and ignoring local guest data.");
+                    applyLoadedData(remoteData);
+                    localStorage.setItem(localKey, JSON.stringify(remoteData));
+                    localStorage.removeItem(guestKey);
+                } else {
+                    // No cloud data, check for guest data to migrate.
+                    const guestDataString = localStorage.getItem(guestKey);
+                    if (guestDataString) {
+                        // Migrate the guest data to the user's account.
+                        console.log("No cloud data. Migrating guest data.");
+                        const guestData = JSON.parse(guestDataString);
+                        applyLoadedData(guestData);
+                        localStorage.setItem(localKey, guestDataString);
+                        localStorage.removeItem(guestKey);
+                        await saveNotesToSupabase(); // Push migrated data to cloud.
+                    } else {
+                        // No cloud data, no guest data. Start with a blank/welcome screen.
+                        console.log("No cloud or guest data. Starting fresh.");
+                        await syncWithSupabase(); // This will create the welcome screen.
+                        const localData = loadNotesLocally(localKey);
+                        applyLoadedData(localData);
+                    }
+                }
+
+                hideLoader(); // Hide loader only after the initial data is loaded and rendered.
+                setupRealtimeSubscription();
+            }
         };
 
         const setupLocalApp = async () => {
