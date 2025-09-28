@@ -1120,14 +1120,15 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
-            // The 'INITIAL_SESSION' event fires right away with data from local storage.
-            // 'SIGNED_IN' fires when a user logs in.
-            if (session && (event === 'INITIAL_SESSION' || event === 'SIGNED_IN')) {
+            if (event === 'SIGNED_OUT') {
+                // User explicitly signed out, show the login page.
+                setupLoginPage();
+            } else if (session) {
+                // A session exists (INITIAL_SESSION or SIGNED_IN), set up the authenticated app.
                 await setupAuthenticatedApp(session);
             } else {
-                // This handles SIGNED_OUT, TOKEN_REFRESHED with an error,
-                // and the initial state where there is no session.
-                setupLoginPage();
+                // No session found on startup, default to the local/offline app.
+                await setupLocalApp();
             }
         });
 
