@@ -1967,6 +1967,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const activeObject = e.target;
                 activeObject.bringToFront();
                 fabricCanvas.renderAll();
+                saveNotesLocally(); // Persist the new order without creating an undo step
             }
         };
 
