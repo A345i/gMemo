@@ -1179,15 +1179,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     fabricCanvas.renderAll();
                     resetHistory(pageData);
                     historyLock = false;
+                    setActiveTool(null);
                 });
             } else {
                 fabricCanvas.setViewportTransform([1, 0, 0, 1, 0, 0]);
                 fabricCanvas.renderAll();
                 resetHistory();
                 historyLock = false;
+                setActiveTool(null);
             }
             updatePageIndicator();
-            setActiveTool(null); // Ensure tool is reset after page load
         };
 
         if ('ontouchstart' in window) { fabric.Object.prototype.set({ cornerSize: 15, touchCornerSize: 44, transparentCorners: true, cornerColor: 'rgba(0,123,255,0.7)', borderColor: 'rgba(0,123,255,0.7)', cornerStyle: 'circle' }); }
