@@ -1957,6 +1957,20 @@ document.addEventListener('DOMContentLoaded', () => {
         const mobileGroupButton = document.getElementById('mobile-group-button');
         const mobileUngroupButton = document.getElementById('mobile-ungroup-button');
 
+        // --- NEW: Combined function to handle selection changes ---
+        const handleSelectionChange = (e) => {
+            // First, update the state of the group/ungroup buttons (existing logic)
+            updateGroupButtons(e);
+
+            // Then, bring the selected object to the front, but ONLY if the select tool is active
+            if (currentTool === 'select' && e.target) {
+                const activeObject = e.target;
+                activeObject.bringToFront();
+                fabricCanvas.renderAll();
+                saveState(); // Save the new object order
+            }
+        };
+
         // Function to handle group functionality
         const handleGroup = () => {
             const activeSelection = fabricCanvas.getActiveObject();
@@ -2238,11 +2252,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        fabricCanvas.on({
-            'selection:created': updateGroupButtons,
-            'selection:updated': updateGroupButtons,
-            'selection:cleared': updateGroupButtons
-        });
+        fabricCanvas.on('object:modified', saveState);
+        fabricCanvas.on('selection:created', handleSelectionChange);
+        fabricCanvas.on('selection:updated', handleSelectionChange);
+        fabricCanvas.on('selection:cleared', updateGroupButtons); // Cleared event doesn't need to move objects
 
         // --- NEW: Mobile Text Controls Logic ---
         const hideTextControls = () => {
