@@ -1967,7 +1967,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 const activeObject = e.target;
                 activeObject.bringToFront();
                 fabricCanvas.renderAll();
-                saveNotesLocally(); // Persist the new order without creating an undo step
             }
         };
 
@@ -2252,7 +2251,17 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        fabricCanvas.on('object:modified', saveState);
+        mobileGroupButton.addEventListener('click', handleGroup);
+        mobileUngroupButton.addEventListener('click', handleUngroup);
+
+        const handleObjectModified = (e) => {
+            if (e.target) {
+                e.target.bringToFront();
+            }
+            saveState();
+        };
+
+        fabricCanvas.on('object:modified', handleObjectModified);
         fabricCanvas.on('selection:created', handleSelectionChange);
         fabricCanvas.on('selection:updated', handleSelectionChange);
         fabricCanvas.on('selection:cleared', updateGroupButtons); // Cleared event doesn't need to move objects
