@@ -15,7 +15,9 @@ const urlsToCache = [
   './js/supabase.js',
   './js/lodash.min.js',
   './webfonts/bootstrap-icons.woff',
-  './webfonts/bootstrap-icons.woff2'
+  './webfonts/bootstrap-icons.woff2',
+  './firstscreen.json',
+  './manifest.json'
 ];
 
 self.addEventListener('install', event => {
@@ -29,14 +31,33 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
-  event.respondWith(
-    caches.match(event.request)
-      .then(response => {
-        if (response) {
-          return response;
+  // Handle API requests that may fail when offline
+  if (event.request.url.includes('supabase.co')) {
+    event.respondWith(
+      fetch(event.request).catch(() => {
+        // Return a mock response when offline
+        return new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      })
+    );
+  } else {
+    // Handle regular requests with cache-first strategy
+    event.respondWith(
+      caches.match(event.request)
+        .then(response => {
+          if (response) {
+            return response;
+          }
+          return fetch(event.request).catch(() => {
+            // For non-API requests, try to serve a fallback if we can't fetch
+            if (event.request.destination === 'document') {
+              return caches.match('./index.html');
+            }
+          });
         }
-        return fetch(event.request);
-      }
-    )
-  );
+      )
+    );
+  }
 });
