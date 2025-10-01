@@ -760,28 +760,33 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const getNotesFromSupabase = async () => {
-            const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
-            if (error && error.code !== 'PGRST116') {
-                console.error('Error fetching notes:', error);
-                return null;
-            }
-            if (data && data.profile_text) {
-                try {
-                    const parsedData = JSON.parse(data.profile_text);
-                    // Handle backward compatibility
-                    if (!parsedData.data) {
-                        return {
-                            lastModified: new Date(0).toISOString(), // Old data is considered ancient
-                            data: parsedData
-                        };
-                    }
-                    return parsedData;
-                } catch (e) {
-                    console.error('Error parsing Supabase notes JSON:', e);
+            try {
+                const { data, error } = await supabaseClient.from('profiles').select('profile_text').single();
+                if (error && error.code !== 'PGRST116') {
+                    console.error('Error fetching notes:', error);
                     return null;
                 }
+                if (data && data.profile_text) {
+                    try {
+                        const parsedData = JSON.parse(data.profile_text);
+                        // Handle backward compatibility
+                        if (!parsedData.data) {
+                            return {
+                                lastModified: new Date(0).toISOString(), // Old data is considered ancient
+                                data: parsedData
+                            };
+                        }
+                        return parsedData;
+                    } catch (e) {
+                        console.error('Error parsing Supabase notes JSON:', e);
+                        return null;
+                    }
+                }
+                return null;
+            } catch (networkError) {
+                console.warn('Network error fetching notes from Supabase:', networkError);
+                throw networkError; // Re-throw to be caught by the calling function
             }
-            return null;
         };
 
         const saveNotesToSupabase = async () => {
@@ -798,19 +803,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // We send the entire wrapped object to Supabase
-            const { error } = await supabaseClient.from('profiles').update({ profile_text: localDataString }).eq('id', currentUser.id);
-            
-            if (error) {
-                console.error('Error saving to Supabase:', error);
-                // The indicator remains "unsaved" (red)
-            } else {
-                // Sync successful, show green indicator
-                saveIndicator.classList.remove('unsaved');
-                saveIndicator.classList.add('saved');
-                setTimeout(() => {
-                    saveIndicator.classList.remove('saved');
-                }, 1500);
+            try {
+                // We send the entire wrapped object to Supabase
+                const { error } = await supabaseClient.from('profiles').update({ profile_text: localDataString }).eq('id', currentUser.id);
+                
+                if (error) {
+                    console.error('Error saving to Supabase:', error);
+                    // The indicator remains "unsaved" (red)
+                } else {
+                    // Sync successful, show green indicator
+                    saveIndicator.classList.remove('unsaved');
+                    saveIndicator.classList.add('saved');
+                    setTimeout(() => {
+                        saveIndicator.classList.remove('saved');
+                    }, 1500);
+                }
+            } catch (networkError) {
+                console.warn('Network error saving to Supabase:', networkError);
+                // The indicator remains "unsaved" (red) if we can't reach the network
             }
         };
         
@@ -823,17 +833,22 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- THE SAFE SYNC ALGORITHM ---
 
             // 1. Get both data sources.
-            const remoteDataPromise = getNotesFromSupabase();
+            let remoteData;
+            try {
+                remoteData = await getNotesFromSupabase();
+            } catch (e) {
+                // --- NETWORK ERROR SCENARIO ---
+                console.warn("Failed to fetch remote data. Working offline.", e);
+                // Do nothing further. The app will continue with local data.
+                return;
+            }
+
             const localDataString = localStorage.getItem(localKey);
             const localData = localDataString ? JSON.parse(localDataString) : null;
             
-            let remoteData;
-            try {
-                remoteData = await remoteDataPromise;
-            } catch (e) {
-                // --- NETWORK ERROR SCENARIO ---
-                console.error("Failed to fetch remote data. Aborting sync to prevent data loss.", e);
-                // Do nothing further. The app will continue with local data.
+            // If remoteData is null due to network error, handle gracefully
+            if (remoteData === null) {
+                console.warn("Remote data is null, continuing with local data only");
                 return;
             }
 
@@ -856,7 +871,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         // Local data is newer, silently push it.
                         console.log("Local data is newer. Pushing local changes to the cloud automatically.");
-                        await saveNotesToSupabase();
+                        saveNotesToSupabase().catch(err => {
+                            console.warn("Could not save to Supabase, working offline:", err);
+                        });
                     }
                 } else {
                     // Data is in sync, nothing to do.
@@ -866,7 +883,9 @@ document.addEventListener('DOMContentLoaded', () => {
             } else if (localExists && !remoteExists) {
                 // --- SIMPLE PUSH SCENARIO ---
                 console.log("Local data found, but no remote data. Pushing to cloud...");
-                await saveNotesToSupabase();
+                saveNotesToSupabase().catch(err => {
+                    console.warn("Could not save to Supabase, working offline:", err);
+                });
 
             } else if (!localExists && remoteExists) {
                 // --- SIMPLE PULL SCENARIO ---
@@ -890,7 +909,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     currentPageIndex = 0;
                     loadPage(0);
                     saveNotesLocally(); // This creates the local save file
-                    await saveNotesToSupabase(); // This pushes it to the new profile
+                    saveNotesToSupabase().catch(err => {
+                        console.warn("Could not save to Supabase, working offline:", err);
+                    }); // This pushes it to the new profile
                 } catch (e) {
                     console.warn(e.message, "Could not load welcome screen. Starting blank.");
                     applyLoadedData(null);
@@ -941,6 +962,9 @@ document.addEventListener('DOMContentLoaded', () => {
             authContainer.classList.add('d-none');
             appContainer.classList.remove('d-none');
             resizeCanvas();
+            
+            // Update network status indicator
+            updateNetworkStatus();
 
             const userDataString = localStorage.getItem(localKey);
 
@@ -953,46 +977,111 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Then, sync in the background.
                 setupRealtimeSubscription();
-                syncWithSupabase(); // This will run in the background and handle any updates.
+                // Try to sync with Supabase, but don't block if network is unavailable
+                syncWithSupabase().catch(err => {
+                    console.warn("Could not sync with Supabase, working offline:", err);
+                }); // This will run in the background and handle any updates.
 
             } else {
                 // --- TRUE FIRST LOGIN on a new device ---
-                // No local data exists for this user. We must wait for the first sync from the cloud.
-                // This is the only case where we block the UI waiting for the network.
+                // No local data exists for this user. We must attempt sync from the cloud.
                 console.log("First login on this device. Performing initial sync...");
                 
-                const remoteData = await getNotesFromSupabase();
+                try {
+                    const remoteData = await getNotesFromSupabase();
 
-                if (remoteData) {
-                    // Cloud data exists, it's the source of truth.
-                    console.log("Cloud data found. Applying it and ignoring local guest data.");
-                    applyLoadedData(remoteData);
-                    localStorage.setItem(localKey, JSON.stringify(remoteData));
-                    localStorage.removeItem(guestKey);
-                } else {
-                    // No cloud data, check for guest data to migrate.
+                    if (remoteData) {
+                        // Cloud data exists, it's the source of truth.
+                        console.log("Cloud data found. Applying it and ignoring local guest data.");
+                        applyLoadedData(remoteData);
+                        localStorage.setItem(localKey, JSON.stringify(remoteData));
+                        localStorage.removeItem(guestKey);
+                    } else {
+                        // No cloud data, check for guest data to migrate.
+                        const guestDataString = localStorage.getItem(guestKey);
+                        if (guestDataString) {
+                            // Migrate the guest data to the user's account.
+                            console.log("No cloud data. Migrating guest data.");
+                            const guestData = JSON.parse(guestDataString);
+                            applyLoadedData(guestData);
+                            localStorage.setItem(localKey, guestDataString);
+                            localStorage.removeItem(guestKey);
+                            // Try to push migrated data to cloud, but don't fail if offline
+                            saveNotesToSupabase().catch(err => {
+                                console.warn("Could not save to Supabase, working offline:", err);
+                            });
+                        } else {
+                            // No cloud data, no guest data. Start with a blank/welcome screen.
+                            console.log("No cloud or guest data. Starting fresh.");
+                            // Try to sync with Supabase to create the welcome screen
+                            await syncWithSupabase().catch(err => {
+                                console.warn("Could not sync with Supabase, working offline:", err);
+                            });
+                            const localData = loadNotesLocally(localKey);
+                            applyLoadedData(localData);
+                        }
+                    }
+
+                    hideLoader(); // Hide loader only after the initial data is loaded and rendered.
+                } catch (error) {
+                    // Network error - continue with offline mode
+                    console.warn("Network error during first sync, loading offline data:", error);
                     const guestDataString = localStorage.getItem(guestKey);
                     if (guestDataString) {
-                        // Migrate the guest data to the user's account.
-                        console.log("No cloud data. Migrating guest data.");
                         const guestData = JSON.parse(guestDataString);
                         applyLoadedData(guestData);
                         localStorage.setItem(localKey, guestDataString);
                         localStorage.removeItem(guestKey);
-                        await saveNotesToSupabase(); // Push migrated data to cloud.
                     } else {
-                        // No cloud data, no guest data. Start with a blank/welcome screen.
-                        console.log("No cloud or guest data. Starting fresh.");
-                        await syncWithSupabase(); // This will create the welcome screen.
-                        const localData = loadNotesLocally(localKey);
-                        applyLoadedData(localData);
+                        // Start with welcome screen if available, even without network
+                        try {
+                            const response = await fetch('firstscreen.json');
+                            if (response.ok) {
+                                let firstScreenData = await response.json();
+                                if (firstScreenData.data && firstScreenData.data.pages && firstScreenData.data.pages[0]) {
+                                    firstScreenData = firstScreenData.data.pages[0];
+                                }
+                                pages = [firstScreenData];
+                                currentPageIndex = 0;
+                                loadPage(0);
+                                saveNotesLocally(); // This creates the local save file
+                            } else {
+                                applyLoadedData(null); // Start blank
+                            }
+                        } catch (fetchError) {
+                            console.warn("Could not load welcome screen:", fetchError);
+                            applyLoadedData(null); // Start blank
+                        }
                     }
+                    hideLoader();
                 }
 
-                hideLoader(); // Hide loader only after the initial data is loaded and rendered.
                 setupRealtimeSubscription();
             }
         };
+
+        // Function to check network status and update UI accordingly
+        const updateNetworkStatus = () => {
+            const isOnline = navigator.onLine;
+            if (!isOnline) {
+                // Update save indicator to reflect offline status
+                saveIndicator.classList.remove('saved');
+                saveIndicator.classList.add('unsaved');
+                saveIndicator.title = "Оффлайн - изменения сохраняются локально";
+            }
+        };
+
+        // Add event listeners for online/offline status
+        window.addEventListener('online', () => {
+            updateNetworkStatus();
+            // When coming back online, consider syncing if user was previously logged in
+            if (currentUser) {
+                syncWithSupabase().catch(err => {
+                    console.warn("Could not sync with Supabase when coming online:", err);
+                });
+            }
+        });
+        window.addEventListener('offline', updateNetworkStatus);
 
         const setupLocalApp = async () => {
             currentUser = null;
@@ -1039,6 +1128,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             resizeCanvas();
             hideLoader();
+            
+            // Update network status indicator
+            updateNetworkStatus();
         };
 
         const setupLoginPage = () => {
@@ -1060,6 +1152,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // The onAuthStateChange listener below will handle the rest,
             // firing immediately with a cached session if available,
             // or after the user logs in.
+            // The auth state change handler is wrapped with error handling
+            // to prevent initialization failures from blocking the UI.
         };
 
         supabaseClient.auth.onAuthStateChange(async (event, session) => {
@@ -1068,17 +1162,44 @@ document.addEventListener('DOMContentLoaded', () => {
                 setupLoginPage();
             } else if (session) {
                 // A session exists (INITIAL_SESSION or SIGNED_IN), set up the authenticated app.
-                await setupAuthenticatedApp(session);
+                try {
+                    await setupAuthenticatedApp(session);
+                } catch (error) {
+                    console.error("Error setting up authenticated app:", error);
+                    // Fallback to local app if there are issues with authentication
+                    await setupLocalApp();
+                }
             } else {
                 // No session found on startup, default to the local/offline app.
-                await setupLocalApp();
+                try {
+                    await setupLocalApp();
+                } catch (error) {
+                    console.error("Error setting up local app:", error);
+                    // Fallback: ensure we have a basic working UI
+                    authContainer.classList.remove('d-none');
+                    appContainer.classList.add('d-none');
+                    hideLoader();
+                }
             }
         });
 
+        // Initialize the app, but handle potential network issues during initialization
         initializeApp();
 
         // --- Event Listeners for new buttons ---
-        offlineButton.addEventListener('click', setupLocalApp);
+        offlineButton.addEventListener('click', async () => {
+            try {
+                await setupLocalApp();
+            } catch (error) {
+                console.error("Error setting up offline mode:", error);
+                // Fallback: ensure the UI is in a usable state
+                authContainer.classList.add('d-none');
+                appContainer.classList.remove('d-none');
+                userEmailDisplay.textContent = "Оффлайн";
+                resizeCanvas();
+                hideLoader();
+            }
+        });
         showLoginButton.addEventListener('click', setupLoginPage);
 
         // --- Canvas & App Logic ---
